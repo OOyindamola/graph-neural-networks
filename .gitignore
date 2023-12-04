@@ -2,6 +2,9 @@
 /build/
 /alegnn.egg-info/
 poetry.lock
+__pycache__
+
+.ipynb_checkpoints
 alegnn/examples
 alegnn/myvid.mp4
 alegnn/*.npy
