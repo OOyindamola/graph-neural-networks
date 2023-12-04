@@ -5,14 +5,14 @@
 
 # Learn decentralized controllers for flocking. There is a team of robots that
 # start flying at random velocities and we want them to coordinate so that they
-# can fly together while avoiding collisions. We learn a decentralized 
+# can fly together while avoiding collisions. We learn a decentralized
 # controller by using imitation learning.
 
 # In this simulation, the number of agents is fixed for training, but can be
 # set to a different number for testing.
 
 # Outputs:
-# - Text file with all the hyperparameters selected for the run and the 
+# - Text file with all the hyperparameters selected for the run and the
 #   corresponding results (hyperparameters.txt)
 # - Pickle file with the random seeds of both torch and numpy for accurate
 #   reproduction of results (randomSeedUsed.pkl)
@@ -22,7 +22,7 @@
 #   each model (figs/ and trainVars/)
 # - Videos for some of the trajectories in the dataset, following the optimal
 #   centralized controller (datasetTrajectories/)
-# - Videos for some of the learned trajectories following the controles 
+# - Videos for some of the learned trajectories following the controles
 #   learned by each model (learnedTrajectories/)
 
 #%%##################################################################
@@ -70,7 +70,7 @@ startRunTime = datetime.datetime.now()
 
 thisFilename = 'flockingGNN' # This is the general name of all related files
 
-nAgents = 50 # Number of agents at training time
+nAgents = 10 # Number of agents at training time
 
 saveDirRoot = 'experiments' # In this case, relative location
 saveDir = os.path.join(saveDirRoot, thisFilename) # Dir where to save all
@@ -121,7 +121,7 @@ nSimPoints = 1 # Number of simulations between nAgents and nAgentsMax
     # At test time, the architectures trained on nAgents will be tested on a
     # varying number of agents, starting at nAgents all the way to nAgentsMax;
     # the number of simulations for different number of agents is given by
-    # nSimPoints, i.e. if nAgents = 50, nAgentsMax = 100 and nSimPoints = 3, 
+    # nSimPoints, i.e. if nAgents = 50, nAgentsMax = 100 and nSimPoints = 3,
     # then the architectures are trained on 50, 75 and 100 agents.
 commRadius = 2. # Communication radius
 repelDist = 1. # Minimum distance before activating repelling potential
@@ -179,8 +179,8 @@ evaluator = evaluation.evaluateFlocking
 
 #\\\ Overall training options
 probExpert = 0.993 # Probability of choosing the expert in DAGger
-#DAGgerType = 'fixedBatch' # 'replaceTimeBatch', 'randomEpoch'
-nEpochs = 30 # Number of epochs
+DAGgerType = 'fixedBatch' # 'replaceTimeBatch', 'randomEpoch'
+nEpochs = 10 # Number of epochs
 batchSize = 20 # Batch size
 doLearningRateDecay = False # Learning rate decay
 learningRateDecayRate = 0.9 # Rate
@@ -224,16 +224,16 @@ writeVarValues(varsFile,
 
 #nFeatures = 32 # Number of features in all architectures
 #nFilterTaps = 4 # Number of filter taps in all architectures
-# [[The hyperparameters are for each architecture, and they were chosen 
+# [[The hyperparameters are for each architecture, and they were chosen
 #   following the results of the hyperparameter search]]
 nonlinearityHidden = torch.tanh
 nonlinearityOutput = torch.tanh
 nonlinearity = nn.Tanh # Chosen nonlinearity for nonlinear architectures
 
 # Select desired architectures
-doLocalFlt = True # Local filter (no nonlinearity)
-doLocalGNN = True # Local GNN (include nonlinearity)
-doDlAggGNN = True
+doLocalFlt = False # Local filter (no nonlinearity)
+doLocalGNN = False # Local GNN (include nonlinearity)
+doDlAggGNN = False
 doGraphRNN = True
 
 modelList = []
@@ -265,7 +265,7 @@ if doLocalFlt:
     # Readout layer: local linear combination of features
     hParamsLocalFlt['dimReadout'] = [2] # Dimension of the fully connected
         # layers after the FIR filter layers (map); this fully connected layer
-        # is applied only at each node, without any further exchanges nor 
+        # is applied only at each node, without any further exchanges nor
         # considering all nodes at once, making the architecture entirely
         # local.
     # Graph structure
@@ -274,7 +274,7 @@ if doLocalFlt:
     #\\\ Save Values:
     writeVarValues(varsFile, hParamsLocalFlt)
     modelList += [hParamsLocalFlt['name']]
-    
+
 #\\\\\\\\\\\\\\\\\
 #\\\ LOCAL GNN \\\
 #\\\\\\\\\\\\\\\\\
@@ -302,7 +302,7 @@ if doLocalGNN:
     # Readout layer: local linear combination of features
     hParamsLocalGNN['dimReadout'] = [2] # Dimension of the fully connected
         # layers after the GCN layers (map); this fully connected layer
-        # is applied only at each node, without any further exchanges nor 
+        # is applied only at each node, without any further exchanges nor
         # considering all nodes at once, making the architecture entirely
         # local.
     # Graph structure
@@ -311,7 +311,7 @@ if doLocalGNN:
     #\\\ Save Values:
     writeVarValues(varsFile, hParamsLocalGNN)
     modelList += [hParamsLocalGNN['name']]
-    
+
 #\\\\\\\\\\\\\\\\\\\\\\\
 #\\\ AGGREGATION GNN \\\
 #\\\\\\\\\\\\\\\\\\\\\\\
@@ -341,7 +341,7 @@ if doDlAggGNN:
     # Readout layer: local linear combination of features
     hParamsDAGNN1Ly['dimReadout'] = [64, 2] # Dimension of the fully connected
         # layers after the GCN layers (map); this fully connected layer
-        # is applied only at each node, without any further exchanges nor 
+        # is applied only at each node, without any further exchanges nor
         # considering all nodes at once, making the architecture entirely
         # local.
     # Graph structure
@@ -351,7 +351,7 @@ if doDlAggGNN:
     #\\\ Save Values:
     writeVarValues(varsFile, hParamsDAGNN1Ly)
     modelList += [hParamsDAGNN1Ly['name']]
-    
+
 #\\\\\\\\\\\\\\\\\
 #\\\ GRAPH RNN \\\
 #\\\\\\\\\\\\\\\\\
@@ -382,7 +382,7 @@ if doGraphRNN:
     # Readout layer: local linear combination of features
     hParamsGraphRNN['dimReadout'] = [2] # Dimension of the fully connected
         # layers after the GCN layers (map); this fully connected layer
-        # is applied only at each node, without any further exchanges nor 
+        # is applied only at each node, without any further exchanges nor
         # considering all nodes at once, making the architecture entirely
         # local.
     # Graph structure
@@ -440,11 +440,13 @@ writeVarValues(varsFile,
 if useGPU and torch.cuda.is_available():
     torch.cuda.empty_cache()
 
+print("modelList: ", modelList)
 #\\\ Notify of processing units
 if doPrint:
     print("Selected devices:")
     for thisModel in modelList:
         hParamsDict = eval('hParams' + thisModel)
+        print(hParamsDict)
         print("\t%s: %s" % (thisModel, hParamsDict['device']))
 
 #\\\ Logging options
@@ -453,7 +455,7 @@ if doLogging:
     from alegnn.utils.visualTools import Visualizer
     logsTB = os.path.join(saveDir, 'logsTB')
     logger = Visualizer(logsTB, name='visualResults')
-    
+
 #\\\ Number of agents at test time
 nAgentsTest = np.linspace(nAgents, nAgentsMax, num = nSimPoints,dtype = np.int)
 nAgentsTest = np.unique(nAgentsTest).tolist()
@@ -462,7 +464,7 @@ writeVarValues(varsFile, {'nAgentsTest': nAgentsTest}) # Save list
 
 #\\\ Save variables during evaluation.
 # We will save all the evaluations obtained for each of the trained models.
-# The first list is one for each value of nAgents that we want to simulate 
+# The first list is one for each value of nAgents that we want to simulate
 # (i.e. these are test results, so if we test for different number of agents,
 # we need to save the results for each of them). Each element in the list will
 # be a dictionary (i.e. for each testing case, we have a dictionary).
@@ -504,8 +506,8 @@ if doFigs:
     for thisModel in modelList:
         lossTrain[thisModel] = [None] * nRealizations
         evalValid[thisModel] = [None] * nRealizations
-
-
+#
+#
 ####################
 # TRAINING OPTIONS #
 ####################
@@ -516,7 +518,7 @@ if doFigs:
 # This just creates a dictionary necessary to pass to the train function.
 
 trainingOptions = {}
-
+#
 if doLogging:
     trainingOptions['logger'] = logger
 if doSaveVars:
@@ -530,9 +532,9 @@ trainingOptions['validationInterval'] = validationInterval
 
 # And in case each model has specific training options (aka 'DAGger'), then
 # we create a separate dictionary per model.
-
+#
 trainingOptsPerModel= {}
-
+#
 # Create relevant dirs: we need directories to save the videos of the dataset
 # that involve the optimal centralized controllers, and we also need videos
 # for the learned trajectory of each model. Note that all of these depend on
@@ -541,29 +543,29 @@ trainingOptsPerModel= {}
 datasetTrajectoryDir = os.path.join(saveDir,'datasetTrajectories')
 if not os.path.exists(datasetTrajectoryDir):
     os.makedirs(datasetTrajectoryDir)
-    
+
 datasetTrainTrajectoryDir = os.path.join(datasetTrajectoryDir,'train')
 if not os.path.exists(datasetTrainTrajectoryDir):
     os.makedirs(datasetTrainTrajectoryDir)
-    
+
 datasetTestTrajectoryDir = os.path.join(datasetTrajectoryDir,'test')
 if not os.path.exists(datasetTestTrajectoryDir):
     os.makedirs(datasetTestTrajectoryDir)
 
 datasetTestAgentTrajectoryDir = [None] * nSimPoints
-for n in range(nSimPoints):    
+for n in range(nSimPoints):
     datasetTestAgentTrajectoryDir[n] = os.path.join(datasetTestTrajectoryDir,
                                                     '%03d' % nAgentsTest[n])
-    
+
 if nRealizations > 1:
     datasetTrainTrajectoryDirOrig = datasetTrainTrajectoryDir
     datasetTestAgentTrajectoryDirOrig = datasetTestAgentTrajectoryDir.copy()
 
-#%%##################################################################
-#                                                                   #
-#                    DATA SPLIT REALIZATION                         #
-#                                                                   #
-#####################################################################
+# #%%##################################################################
+# #                                                                   #
+# #                    DATA SPLIT REALIZATION                         #
+# #                                                                   #
+# #####################################################################
 
 # Start generating a new data realization for each number of total realizations
 
@@ -574,13 +576,13 @@ for realization in range(nRealizations):
 
     if nRealizations > 1:
         trainingOptions['realizationNo'] = realization
-        
+
         # Create new directories (specific for this realization)
         datasetTrainTrajectoryDir = os.path.join(datasetTrainTrajectoryDirOrig,
                                                  '%03d' % realization)
         if not os.path.exists(datasetTrainTrajectoryDir):
             os.makedirs(datasetTrainTrajectoryDir)
-            
+
         for n in range(nSimPoints):
             datasetTestAgentTrajectoryDir[n] = os.path.join(
                                           datasetTestAgentTrajectoryDirOrig[n],
@@ -606,6 +608,7 @@ for realization in range(nRealizations):
         if nRealizations > 1:
             print(" for realization %d" % realization, end = '')
         print("...", flush = True)
+
 
     #   Generate the dataset
     data = dataTools.Flocking(
@@ -664,6 +667,7 @@ for realization in range(nRealizations):
 
         # Get the corresponding parameter dictionary
         hParamsDict = deepcopy(eval('hParams' + thisModel))
+        print("Here", trainingOptions)
         # and training options
         trainingOptsPerModel[thisModel] = deepcopy(trainingOptions)
 
@@ -707,6 +711,7 @@ for realization in range(nRealizations):
         # ARCHITECTURE #
         ################
 
+        print("Initializing ARCHITECTURE")
         thisArchit = callArchit(**hParamsDict)
         thisArchit.to(thisDevice)
 
@@ -730,13 +735,13 @@ for realization in range(nRealizations):
         ########
 
         thisLossFunction = lossFunction()
-        
+
         ###########
         # TRAINER #
         ###########
 
         thisTrainer = trainer
-        
+
         #############
         # EVALUATOR #
         #############
@@ -782,12 +787,13 @@ for realization in range(nRealizations):
     ############
 
     print("")
-
+    print("modelsGNN.keys(): ", modelsGNN.keys())
     for thisModel in modelsGNN.keys():
+        print("thisModel: ", thisModel)
 
         if doPrint:
             print("Training model %s..." % thisModel)
-            
+
         for m in modelList:
             if m in thisModel:
                 modelName = m
@@ -819,9 +825,9 @@ for realization in range(nRealizations):
 
     # We have two versions of each model to evaluate: the one obtained
     # at the best result of the validation step, and the last trained model.
-        
+
     for n in range(nSimPoints):
-        
+
         if doPrint:
             print("")
             print("[%3d Agents] Generating test set" % nAgentsTest[n],
@@ -848,79 +854,79 @@ for realization in range(nRealizations):
                         initVelValue = initVelValue,
                         initMinDist = initMinDist,
                         accelMax = accelMax)
-    
+
         ###########
         # OPTIMAL #
         ###########
-        
+
         #\\\ PREVIEW
         #\\\\\\\\\\\
-        
+
         # Save videos for the optimal trajectories of the test set (before it
         # was for the otpimal trajectories of the training set)
-        
+
         posTest = dataTest.getData('pos', 'test')
         velTest = dataTest.getData('vel', 'test')
         commGraphTest = dataTest.getData('commGraph', 'test')
-    
+
         if doPrint:
             print("[%3d Agents] Preview data"  % nAgentsTest[n], end = '')
             if nRealizations > 1:
                 print(" for realization %d" % realization, end = '')
             print("...", flush = True)
-    
+
         dataTest.saveVideo(datasetTestAgentTrajectoryDir[n],
                            posTest,
                            nVideos,
                            commGraph = commGraphTest,
                            vel = velTest,
                            videoSpeed = videoSpeed)
-        
+
         #\\\ EVAL
         #\\\\\\\\
-        
+
         # Get the cost for the optimal trajectories
-        
+
         # Full trajectory
         costOptFull[n][realization] = dataTest.evaluate(vel = velTest)
-        
+
         # Last time instant
         costOptEnd[n][realization] = dataTest.evaluate(vel = velTest[:,-1:,:,:])
-        
+
         writeVarValues(varsFile,
                    {'costOptFull%03dR%02d' % (nAgentsTest[n],realization):
                                                      costOptFull[n][realization],
                     'costOptEnd%04dR%02d' % (nAgentsTest[n],realization):
                                                      costOptEnd[n][realization]})
-        
+
         del posTest, velTest, commGraphTest
-        
+
         ##########
         # MODELS #
         ##########
-    
+
         for thisModel in modelsGNN.keys():
-    
+
             if doPrint:
                 print("[%3d Agents] Evaluating model %s" % \
                                          (nAgentsTest[n], thisModel), end = '')
                 if nRealizations > 1:
                     print(" for realization %d" % realization, end = '')
                 print("...", flush = True)
-                
+
             addKW = {}
             addKW['nVideos'] = nVideos
             addKW['graphNo'] = nAgentsTest[n]
             if nRealizations > 1:
                 addKW['realizationNo'] = realization
-                
+
             thisEvalVars = modelsGNN[thisModel].evaluate(dataTest, **addKW)
-    
+
             thisCostBestFull = thisEvalVars['costBestFull']
             thisCostBestEnd = thisEvalVars['costBestEnd']
             thisCostLastFull = thisEvalVars['costLastFull']
             thisCostLastEnd = thisEvalVars['costLastEnd']
-            
+
             # Save values
             writeVarValues(varsFile,
                    {'costBestFull%s%03dR%02d' % \
@@ -935,7 +941,7 @@ for realization in range(nRealizations):
                     'costLastEnd%s%04dR%02d' % \
                                        (thisModel, nAgentsTest[n], realization):
                                                                 thisCostLastEnd})
-    
+
             # Find which model to save the results (when having multiple
             # realizations)
             for m in modelList:
@@ -949,7 +955,7 @@ for realization in range(nRealizations):
 ############################
 # FINAL EVALUATION RESULTS #
 ############################
-                    
+
 meanCostBestFull = [None] * nSimPoints # Mean across data splits
 meanCostBestEnd = [None] * nSimPoints # Mean across data splits
 meanCostLastFull = [None] * nSimPoints # Mean across data splits
@@ -962,12 +968,12 @@ meanCostOptFull = [None] * nSimPoints
 stdDevCostOptFull = [None] * nSimPoints
 meanCostOptEnd = [None] * nSimPoints
 stdDevCostOptEnd = [None] * nSimPoints
-                    
+
 for n in range(nSimPoints):
 
     # Now that we have computed the accuracy of all runs, we can obtain a final
     # result (mean and standard deviation)
-    
+
     meanCostBestFull[n] = {} # Mean across data splits
     meanCostBestEnd[n] = {} # Mean across data splits
     meanCostLastFull[n] = {} # Mean across data splits
@@ -976,18 +982,18 @@ for n in range(nSimPoints):
     stdDevCostBestEnd[n] = {} # Standard deviation across data splits
     stdDevCostLastFull[n] = {} # Standard deviation across data splits
     stdDevCostLastEnd[n] = {} # Standard deviation across data splits
-    
+
     if doPrint:
         print("\n[%3d Agents] Final evaluations (%02d data splits)" % \
                                                (nAgentsTest[n], nRealizations))
-        
+
     costOptFull[n] = np.array(costOptFull[n])
     meanCostOptFull[n] = np.mean(costOptFull[n])
     stdDevCostOptFull[n] = np.std(costOptFull[n])
     costOptEnd[n] = np.array(costOptEnd[n])
     meanCostOptEnd[n] = np.mean(costOptEnd[n])
     stdDevCostOptEnd[n] = np.std(costOptEnd[n])
-    
+
     if doPrint:
         print("\t%8s: %8.4f (+-%6.4f) [Optm/Full]" % (
                 'Optimal',
@@ -997,21 +1003,21 @@ for n in range(nSimPoints):
                 '',
                 meanCostOptEnd[n],
                 stdDevCostOptEnd[n]))
-        
+
     # Save values
     writeVarValues(varsFile,
                {'meanCostOptFull%03d' % nAgentsTest[n]: meanCostOptFull[n],
                 'stdDevCostOptFull%03d' % nAgentsTest[n]: stdDevCostOptFull[n],
                 'meanCostOptEnd%04d' % nAgentsTest[n]: meanCostOptEnd[n],
                 'stdDevCostOptEnd%04d' % nAgentsTest[n]: stdDevCostOptEnd[n]})
-    
+
     for thisModel in modelList:
         # Convert the lists into a nDataSplits vector
         costBestFull[n][thisModel] = np.array(costBestFull[n][thisModel])
         costBestEnd[n][thisModel] = np.array(costBestEnd[n][thisModel])
         costLastFull[n][thisModel] = np.array(costLastFull[n][thisModel])
         costLastEnd[n][thisModel] = np.array(costLastEnd[n][thisModel])
-    
+
         # And now compute the statistics (across graphs)
         meanCostBestFull[n][thisModel] = np.mean(costBestFull[n][thisModel])
         meanCostBestEnd[n][thisModel] = np.mean(costBestEnd[n][thisModel])
@@ -1021,7 +1027,7 @@ for n in range(nSimPoints):
         stdDevCostBestEnd[n][thisModel] = np.std(costBestEnd[n][thisModel])
         stdDevCostLastFull[n][thisModel] = np.std(costLastFull[n][thisModel])
         stdDevCostLastEnd[n][thisModel] = np.std(costLastEnd[n][thisModel])
-    
+
         # And print it:
         if doPrint:
             print(
@@ -1038,26 +1044,26 @@ for n in range(nSimPoints):
                     stdDevCostBestEnd[n][thisModel],
                     meanCostLastEnd[n][thisModel],
                     stdDevCostLastEnd[n][thisModel]))
-    
+
         # Save values
         writeVarValues(varsFile,
-                   {'meanAccBestFull%s%03d' % (thisModel, nAgentsTest[n]): 
+                   {'meanAccBestFull%s%03d' % (thisModel, nAgentsTest[n]):
                                                meanCostBestFull[n][thisModel],
-                    'stdDevAccBestFull%s%03d' % (thisModel, nAgentsTest[n]): 
+                    'stdDevAccBestFull%s%03d' % (thisModel, nAgentsTest[n]):
                                                stdDevCostBestFull[n][thisModel],
-                    'meanAccBestEnd%s%04d' % (thisModel, nAgentsTest[n]): 
+                    'meanAccBestEnd%s%04d' % (thisModel, nAgentsTest[n]):
                                                meanCostBestEnd[n][thisModel],
-                    'stdDevAccBestEnd%s%04d' % (thisModel, nAgentsTest[n]): 
+                    'stdDevAccBestEnd%s%04d' % (thisModel, nAgentsTest[n]):
                                                stdDevCostBestEnd[n][thisModel],
-                    'meanAccLastFull%s%03d' % (thisModel, nAgentsTest[n]): 
+                    'meanAccLastFull%s%03d' % (thisModel, nAgentsTest[n]):
                                                meanCostLastFull[n][thisModel],
-                    'stdDevAccLastFull%s%03d' % (thisModel, nAgentsTest[n]): 
+                    'stdDevAccLastFull%s%03d' % (thisModel, nAgentsTest[n]):
                                                stdDevCostLastFull[n][thisModel],
-                    'meanAccLastEnd%s%04d' % (thisModel, nAgentsTest[n]): 
+                    'meanAccLastEnd%s%04d' % (thisModel, nAgentsTest[n]):
                                                meanCostLastEnd[n][thisModel],
-                    'stdDevAccLastEnd%s%04d' % (thisModel, nAgentsTest[n]): 
+                    'stdDevAccLastEnd%s%04d' % (thisModel, nAgentsTest[n]):
                                                stdDevCostLastEnd[n][thisModel]})
-            
+
     # Save the printed info into the .txt file as well
     with open(varsFile, 'a+') as file:
         file.write("\n[%3d Agents] Final evaluations (%02d data splits)" % \
@@ -1246,12 +1252,12 @@ if doPrint:
     print("Total time: %dh %dm %.2fs" % (totalRunTimeH,
                                          totalRunTimeM,
                                          totalRunTimeS))
-    
+
 # And save this info into the .txt file as well
 with open(varsFile, 'a+') as file:
-    file.write("Simulation started: %s\n" % 
+    file.write("Simulation started: %s\n" %
                                      startRunTime.strftime("%Y/%m/%d %H:%M:%S"))
-    file.write("Simulation ended:   %s\n" % 
+    file.write("Simulation ended:   %s\n" %
                                        endRunTime.strftime("%Y/%m/%d %H:%M:%S"))
     file.write("Total time: %dh %dm %.2fs" % (totalRunTimeH,
                                               totalRunTimeM,

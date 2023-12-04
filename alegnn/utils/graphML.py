@@ -32,22 +32,22 @@ EdgeVariantGF: Creates a graph filtering layer using edge-variant graph filters
 GraphFilterARMA: Creates a (linear) layer that applies a ARMA graph filter
     using Jacobi's method
 GraphAttentional: Creates a layer using graph attention mechanisms
-GraphFilterAttentional: Creates a layer using a graph convolution on a GSO 
+GraphFilterAttentional: Creates a layer using a graph convolution on a GSO
     learned through attention
 EdgeVariantAttentional: Creates a layer using an edge variant graph filter
     parameterized by several attention mechanisms
-    
+
 GraphFilter_DB: Creates a graph convolutional layer using LSI graph filters
     that are applied to a delayed sequence of shift operators
 HiddenState_DB: Creates the layer for computing the hidden state of a GRNN
 
-HiddenState: Creates the layer for computing the hidden state of a GRNN (with 
+HiddenState: Creates the layer for computing the hidden state of a GRNN (with
     static GSO)
-TimeGatedHiddenState: Creates the layer for computing the time gated hidden 
+TimeGatedHiddenState: Creates the layer for computing the time gated hidden
     state of a GRNN
-NodeGatedHiddenState: Creates the layer for computing the node gated hidden 
+NodeGatedHiddenState: Creates the layer for computing the node gated hidden
     state of a GRNN
-EdgeGatedHiddenState: Creates the layer for computing the edge gated hidden 
+EdgeGatedHiddenState: Creates the layer for computing the edge gated hidden
     state of a GRNN
 
 Activation Functions - Nonlinearities (nn.Module)
@@ -492,7 +492,7 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
     jARMA(inverse_taps, direct_taps, filter_taps, GSO, input, bias = None,
         tMax = 5) Computes the output of an ARMA filter using Jacobi
         iterations.
-        
+
     The output of an ARMA computed by means of tMax Jacobi iterations is given
     as follows
         y^{f} = \sum_{e=1}^{E} \sum_{g=1}^{G}
@@ -502,19 +502,19 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
                     + H^{3}(S) x
     where E is the total number of edge features, G is the total number of input
     features, and P is the order of the denominator polynomial. The filters are
-        H_{p}^{1}(S) 
-            = \sum_{tau=0}^{t} 
+        H_{p}^{1}(S)
+            = \sum_{tau=0}^{t}
                 (-1)^{tau} varphi_{p}^{fge} (\barS_{p}^{-1} \tilde{S})^{tau}
         H_{p}^{2}(S)
             = (-1)^{t+1} ((\bar{S}_{p}^{fge})^{-1} \tilde{S})^{t+1}
         H^{2}(S) = \sum_{k=0}^{K-1} phi_{k}^{fge} S^{k}
-    where varphi_{p}^{fge} are the direct filter taps of the rational one ARMA 
+    where varphi_{p}^{fge} are the direct filter taps of the rational one ARMA
     filter, phi_{k}^{fge} are the filter taps of the residue LSIGF filter, and
     the GSOs used derive from GSO S and are
         \bar{S}_{p}^{fge} = Diag(S) - psi_{p}^{fge} I_{N}
         \tilde{S} = DiagOff(S)
     with psi_{p}^{fge} the inverse filter taps of the rational one ARMA filter.
-    
+
     Inputs:
         inverse_taps (torch.tensor): array of filter taps psi_{p}^{fge}; shape:
             out_features x edge_features x denominator_order x in_features
@@ -529,9 +529,9 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
         bias (torch.tensor): shape: output_features x number_nodes
             if the same bias is to be applied to all nodes, set number_nodes = 1
             so that b_{f} vector becomes b_{f} \mathbf{1}_{N} (default: None)
-        tMax (int): value of t for computing the Jacobi approximation 
+        tMax (int): value of t for computing the Jacobi approximation
             (default: 5)
-            
+
     Outputs:
         output: filtered signals; shape:
             batch_size x output_features x number_nodes
@@ -558,7 +558,7 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
     N = x.shape[2] # number_nodes
     assert S.shape[0] == E
     assert S.shape[1] == S.shape[2] == N
-    
+
     # First, let's build Stilde and Sbar
     Stilde = torch.empty(0).to(S.device) # Will be of shape E x N x N
     DiagS = torch.empty(0).to(S.device) # Will be of shape E x N x N
@@ -572,7 +572,7 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
     psiI = psi.reshape([F, E, P, G, 1, 1]) * I
     DiagS = DiagS.reshape([1, E, 1, 1, N, N])
     Sbar = DiagS - psiI # F x E x P x G x N x N
-    
+
     # Now, invert Sbar, that doesn't depend on t either, and multiply it by x
     # Obs.: We cannot just do 1/Sbar, because all the nonzero elements will
     # give inf, ruining everything. So we will force the off-diagonal elements
@@ -587,14 +587,14 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
     SbarInvStilde = torch.matmul(SbarInv,
                                  Stilde.reshape([1, E, 1, 1, N, N]))
     #   B x F x E x P x G x N x N
-    
+
     # Next, filtering through H^{3}(S) also doesn't depend on t or p, so
     H3x = LSIGF(phi, S, x)
-    
+
     # Last, build the output from combining all filters H1, H2 and H3
-        
+
     # Compute H1 SbarInvX
-    z = SbarInvX.reshape([B, F, E, 1, P, G, N]) 
+    z = SbarInvX.reshape([B, F, E, 1, P, G, N])
     y = x.reshape([B, 1, 1, 1, G, N, 1]) # (B x F x E x P x G x N x 1)
     x1 = SbarInvX.unsqueeze(6) # B x F x E x P x G x N x 1
     #   (B x F x E x tau x P x G x N)
@@ -605,14 +605,14 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
         z = torch.cat((z, x1.squeeze(6).unsqueeze(3)), dim = 3)
         #   B x F x E x tau x P x G x N
         y = torch.matmul(SbarInvStilde.unsqueeze(0), # 1 x F x E x P x G x N x N
-                         y) 
+                         y)
         # B x F x E x P x G x N x 1
     thisCoeffs = torch.tensor((-1.) ** np.arange(0,tMax+1)).to(x.device)
     thisCoeffs = thisCoeffs.reshape([1, 1, 1, tMax+1, 1, 1]) * \
                     varphi.reshape([1, F, E, 1, P, G])\
                                 .repeat(1, 1, 1, tMax+1, 1, 1)
     #   1 x F x E x (tMax+1) x P x G
-    thisCoeffs = thisCoeffs.permute(0, 4, 1, 2, 3, 5) 
+    thisCoeffs = thisCoeffs.permute(0, 4, 1, 2, 3, 5)
     #   1 x P x F x E x (tMax+1) x G
     z = z.permute(0, 4, 1, 6, 2, 3, 5) # B x P x F x N x E x (tMax+1) x G
     thisCoeffs = thisCoeffs.reshape([1, P, F, E*(tMax+1)*G]).unsqueeze(4)
@@ -632,7 +632,7 @@ def jARMA(psi, varphi, phi, S, x, b=None, tMax = 5):
     # Finally, we add up H1x and H2x and sum over all p, and add to H3 to
     # update u
     u = torch.sum(H1x + H2x, dim = 1) + H3x
-       
+
     if b is not None:
         u = u+b
     return u
@@ -651,7 +651,7 @@ def learnAttentionGSO(x, a, W, S, negative_slope=0.2):
     alpha_{ij}^{ep} in R the attention coefficient between nodes i and j, for
     edge feature e and attention head p, and let s_{ij}^{e} be the value of
     feature e of the edge connecting nodes i and j.
-    
+
     Each elements of the new GSO is alpha_{ij}^{ep} computed as
         alpha_{ij}^{ep} = softmax_{j} ( LeakyReLU_{beta} (
                 (a^{ep})^T [cat(W^{ep}x_{i}, W^{ep} x_{j})]
@@ -801,7 +801,7 @@ def graphAttention(x, a, W, S, negative_slope=0.2):
     x = x.reshape([B, 1, 1, G, N])
     W = W.reshape([1, P, E, F, G])
     Wx = torch.matmul(W, x) # B x P x E x F x N
-    
+
     # Finally, we just need to apply this matrix to the Wx which we have already
     # computed, and done.
     y = torch.matmul(Wx, S.reshape([1, 1, E, N, N]) * aij) # B x P x E x F x N
@@ -810,7 +810,7 @@ def graphAttention(x, a, W, S, negative_slope=0.2):
 
 def graphAttentionLSIGF(h, x, a, W, S, b=None, negative_slope=0.2):
     """
-    graphAttentionLSIGF(h, x, a, W, S) Computes a graph convolution 
+    graphAttentionLSIGF(h, x, a, W, S) Computes a graph convolution
         (LSIGF) over a graph shift operator learned through the attention
         mechanism
 
@@ -850,7 +850,7 @@ def graphAttentionLSIGF(h, x, a, W, S, b=None, negative_slope=0.2):
     # First, we need to learn the attention GSO
     aij = learnAttentionGSO(x, a, W, S, negative_slope = negative_slope)
     # B x P x E x N x N
-    
+
     # And now we need to compute an LSIGF with this learned GSO, but the filter
     # taps of the LSIGF are a combination of h (along K), and W (along F and G)
     # So, we have
@@ -861,14 +861,14 @@ def graphAttentionLSIGF(h, x, a, W, S, b=None, negative_slope=0.2):
     h = h.reshape([1, 1, E, K, 1]) # (P x F x E x K x G)
     W = W.permute(0, 3, 1, 2) # P x F x E x G
     W = W.reshape([P, F, E, 1, G]) # (P x F x E x K x G)
-    h = h * W # P x F x E x K x G (We hope, if not, we need to repeat on the 
+    h = h * W # P x F x E x K x G (We hope, if not, we need to repeat on the
         # corresponding dimensions)
-    
+
     x = x.reshape([B, 1, 1, G, N]) # (B x P x E x G x N)
     # The easiest would be to use the LSIGF function, but that takes as input
     # a B x F x N input, and while we could join together B and P into a single
     # dimension, we would still be unable to handle the E features this way.
-    # So we basically need to copy the code from LSIGF but accounting the 
+    # So we basically need to copy the code from LSIGF but accounting the
     # matrix multiplications with multiple edge features as Wx has
     z = x.reshape([B, 1, 1, 1, G, N]).repeat(1, P, E, 1, 1, 1)
     # add the k=0 dimension (B x P x E x K x G x N)
@@ -938,7 +938,7 @@ def graphAttentionEVGF(x, a, W, S, b=None, negative_slope=0.2):
     #   P x E x F x G
     W0 = W0.reshape([1, P, E, F, G])
     W0x = torch.matmul(W0, x.reshape([B, 1, 1, G, N])) # B x P x E x F x N
-    
+
     # Now we proceed to learn the rest of the EVGF.
     # That first filter coefficient (for the one-hop neighborhood) is learned
     # from the first element along the K dimension (dim = 1)
@@ -949,7 +949,7 @@ def graphAttentionEVGF(x, a, W, S, b=None, negative_slope=0.2):
     W0x = torch.matmul(W0x, S.reshape([1, 1, E, N, N]) * aij) # B x P x E x F x N
     y = W0x # This is the first multiplication between Wx and Aij corresponding
         # to the first-hop neighborhood
-    
+
     # Now, we move on to the rest of the coefficients
     for k in range(1, K):
         thisa = torch.index_select(a,1, torch.tensor(k).to(S.device)).squeeze(1)
@@ -960,7 +960,7 @@ def graphAttentionEVGF(x, a, W, S, b=None, negative_slope=0.2):
             # This multiplies the previous W0x Aij^{1:k-1} with A_ij^{(k)}
         y = y + W0x # Adds that multiplication to the running sum for all other
             # ks, shape: B x P x E x F x N
-    
+
     # Sum over all edge features
     y = torch.sum(y, dim = 2) # B x P x F x N
     # Finally, add the bias
@@ -976,13 +976,13 @@ def graphAttentionEVGF(x, a, W, S, b=None, negative_slope=0.2):
 
 def LSIGF_DB(h, S, x, b=None):
     """
-    LSIGF_DB(filter_taps, GSO, input, bias=None) Computes the output of a 
-        linear shift-invariant graph filter (graph convolution) on delayed 
+    LSIGF_DB(filter_taps, GSO, input, bias=None) Computes the output of a
+        linear shift-invariant graph filter (graph convolution) on delayed
         input and then adds bias.
 
     Denote as G the number of input features, F the number of output features,
     E the number of edge features, K the number of filter taps, N the number of
-    nodes, S_{e}(t) in R^{N x N} the GSO for edge feature e at time t, 
+    nodes, S_{e}(t) in R^{N x N} the GSO for edge feature e at time t,
     x(t) in R^{G x N} the input data at time t where x_{g}(t) in R^{N} is the
     graph signal representing feature g, and b in R^{F x N} the bias vector,
     with b_{f} in R^{N} representing the bias for feature f.
@@ -1000,7 +1000,7 @@ def LSIGF_DB(h, S, x, b=None):
         filter_taps (torch.tensor): array of filter taps; shape:
             output_features x edge_features x filter_taps x input_features
         GSO (torch.tensor): graph shift operator; shape:
-            batch_size x time_samples x edge_features 
+            batch_size x time_samples x edge_features
                                                   x number_nodes x number_nodes
         input (torch.tensor): input signal; shape:
             batch_size x time_samples x input_features x number_nodes
@@ -1016,15 +1016,15 @@ def LSIGF_DB(h, S, x, b=None):
     # a different GSO for each element in the batch, and it handles time
     # sequences, both in the GSO as in the input signal. The GSO should be
     # transparent).
-    
-    # So, the input 
+
+    # So, the input
     #   h: F x E x K x G
     #   S: B x T x E x N x N
     #   x: B x T x G x N
     #   b: F x N
     # And the output has to be
     #   y: B x T x F x N
-    
+
     # Check dimensions
     assert len(h.shape) == 4
     F = h.shape[0]
@@ -1042,19 +1042,19 @@ def LSIGF_DB(h, S, x, b=None):
     assert x.shape[1] == T
     assert x.shape[2] == G
     assert x.shape[3] == N
-    
+
     # We would like a z of shape B x T x K x E x G x N that represents, for
     # each t, x_t, S_t x_{t-1}, S_t S_{t-1} x_{t-2}, ...,
     #         S_{t} ... S_{t-(k-1)} x_{t-k}, ..., S_{t} S_{t-1} ... x_{t-(K-1)}
     # But we don't want to do "for each t". We just want to do "for each k".
-    
+
     # Let's start by reshaping x so it can be multiplied by S
     x = x.reshape([B, T, 1, G, N]).repeat(1, 1, E, 1, 1)
-    
+
     # Now, for the first value of k, we just have the same signal
     z = x.reshape([B, T, 1, E, G, N])
     # For k = 0, k is counted in dim = 2
-    
+
     # Now we need to start multiplying with S, but displacing the entire thing
     # once across time
     for k in range(1,K):
@@ -1073,7 +1073,7 @@ def LSIGF_DB(h, S, x, b=None):
         xS = x.reshape(B, T, 1, E, G, N)
         # And concatenate it with z
         z = torch.cat((z, xS), dim = 2)
-        
+
     # Now, we finally made it to a vector z of shape B x T x K x E x G x N
     # To finally multiply with the filter taps, we need to swap the sizes
     # and reshape
@@ -1082,7 +1082,7 @@ def LSIGF_DB(h, S, x, b=None):
     # And the same with the filter taps
     h = h.reshape(F, E*K*G)
     h = h.permute(1, 0) # E*K*G x F
-    
+
     # Multiply
     y = torch.matmul(z, h) # B x T x N x F
     # And permute
@@ -1090,7 +1090,7 @@ def LSIGF_DB(h, S, x, b=None):
     # Finally, add the bias
     if b is not None:
         y = y + b
-    
+
     return y
 
 def GRNN_DB(a, b, S, x, z0, sigma,
@@ -1098,12 +1098,12 @@ def GRNN_DB(a, b, S, x, z0, sigma,
     """
     GRNN_DB(signal_to_hidden_taps, hidden_to_hidden_taps, GSO, input,
             initial_hidden, nonlinearity, signal_bias, hidden_bias)
-    Computes the sequence of hidden states for the input sequence x following 
+    Computes the sequence of hidden states for the input sequence x following
     the equation z_{t} = sigma(A(S) x_{t} + B(S) z_{t-1}) with initial state z0
-    and where sigma is the nonlinearity, and A(S) and B(S) are the 
-    Input-to-Hidden filters and the Hidden-to-Hidden filters with the 
+    and where sigma is the nonlinearity, and A(S) and B(S) are the
+    Input-to-Hidden filters and the Hidden-to-Hidden filters with the
     corresponding taps.
-    
+
     Inputs:
         signal_to_hidden_taps (torch.tensor): shape
             hidden_features x edge_features x filter_taps x signal_features
@@ -1119,14 +1119,14 @@ def GRNN_DB(a, b, S, x, z0, sigma,
             1 x 1 x hidden_features x 1
         hidden_bias (torch.tensor): shape
             1 x 1 x hidden_features x 1
-    
+
     Outputs:
         hidden_state: shape
             batch_size x time x hidden_features x number_nodes
-            
+
     """
     # We will compute the hidden state for a delayed and batch data.
-    
+
     # So, the input
     #   a: H x E x K x F (Input to Hidden filters)
     #   b: H x E x K x H (Hidden to Hidden filters)
@@ -1137,7 +1137,7 @@ def GRNN_DB(a, b, S, x, z0, sigma,
     #   zBias: 1 x 1 x H x 1 (bias on the Hidden to Hidden features)
     # And the output has to be
     #   z: B x T x H x N (Hidden state signal)
-    
+
     # Check dimensions
     H = a.shape[0] # Number of hidden state features
     E = a.shape[1] # Number of edge features
@@ -1159,17 +1159,17 @@ def GRNN_DB(a, b, S, x, z0, sigma,
     assert z0.shape[0] == B
     assert z0.shape[1] == H
     assert z0.shape[2] == N
-    
+
     # The application of A(S) x(t) doesn't change (it does not depend on z(t))
     Ax = LSIGF_DB(a, S, x, b = xBias) # B x T x H x N
     # This is the filtered signal for all time instants.
     # This also doesn't split S, it only splits x.
-    
+
     # The b parameters we will always need them in this shape
     b = b.unsqueeze(0).reshape(1, H, E*K*H) # 1 x H x EKH
     # so that we can multiply them with the product Sz that should be of shape
     # B x EKH x N
-    
+
     # We will also need a selection matrix that selects the first K-1 elements
     # out of the original K (to avoid torch.split and torch.index_select with
     # more than one index)
@@ -1178,9 +1178,9 @@ def GRNN_DB(a, b, S, x, z0, sigma,
     CK = torch.cat((CK, zeroRow), dim = 0) # K x (K-1)
     # This matrix discards the last column when multiplying on the left
     CK = CK.reshape(1, 1, 1, K, K-1) # 1(B) x 1(E) x 1(H) x K x K-1
-    
+
     #\\\ Now compute the first time instant
-    
+
     # We just need to multiplicate z0 = z(-1) by b(0) to get z(0)
     #   Create the zeros that will multiply the values of b(1), b(2), ... b(K-1)
     #   since we only need b(0)
@@ -1212,7 +1212,7 @@ def GRNN_DB(a, b, S, x, z0, sigma,
     zt = zt.unsqueeze(1) # B x 1 x H x N
     # This is where we will keep track of the product Sz
     Sz = z0.reshape(B, 1, 1, H, N).repeat(1, 1, E, 1, 1) # B x 1 x E x H x N
-    
+
     # Starting now, we need to multiply this by S every time
     for t in range(1,T):
         if t < K:
@@ -1225,20 +1225,20 @@ def GRNN_DB(a, b, S, x, z0, sigma,
             # Multiply by the newly acquired St to do one more delay
             Sz = torch.matmul(Sz, St) # B x t x E x H x N
             # Observe that these delays are backward: the last element in the
-            # T dimension (dim = 1) is the latest element, this makes sense 
+            # T dimension (dim = 1) is the latest element, this makes sense
             # since that is the element we want to multiply by the last element
             # in b.
-            
+
             # Now that we have delayed, add the newest value (which requires
             # no delay)
             ztThis = zt.unsqueeze(2).repeat(1, 1, E, 1, 1) # B x 1 x E x H x N
             Sz = torch.cat((ztThis, Sz), dim = 1) # B x (t+1) x E x H x N
-            
+
             # Pad all those values that are not there yet (will multiply b
             # by zero)
             zeroRow = torch.zeros((B, K-(t+1), E, H, N), device = Sz.device)
             SzPad = torch.cat((Sz, zeroRow), dim = 1) # B x K x E x H x N
-            
+
             # Reshape and permute to adapt to multiplication with b (happens
             # outside the if)
             bSz = SzPad.permute(0, 4, 2, 1, 3).reshape(B, N, E*K*H)
@@ -1247,14 +1247,14 @@ def GRNN_DB(a, b, S, x, z0, sigma,
             #   B x K x E x H x N
             # and thus is full, so we need to get rid of the last element in Sz
             # before adding the new element and multiplying by St.
-            
+
             # We can always get rid of the last element by multiplying by a
             # K x (K-1) selection matrix. So we do that (first we need to
             # permute to have the dimensions ready for multiplication)
             Sz = Sz.permute(0, 2, 3, 4, 1) # B x E x H x N x K
             Sz = torch.matmul(Sz, CK) # B x E x H x N x (K-1)
             Sz = Sz.permute(0, 4, 1, 2, 3) # B x (K-1) x E x H x N
-            
+
             # Get the current time instant
             St = torch.index_select(S, 1, torch.tensor(t, device = S.device))
             #   B x 1 x E x N x N
@@ -1263,16 +1263,16 @@ def GRNN_DB(a, b, S, x, z0, sigma,
             St = St.repeat(1, K-1, 1, 1, 1) # B x (K-1) x E x N x N
             # Multiply by the newly acquired St to do one more delay
             Sz = torch.matmul(Sz, St) # B x (K-1) x E x H x N
-            
+
             # Now that we have delayed, add the newest value (which requires
             # no delay)
             ztThis = zt.unsqueeze(2).repeat(1, 1, E, 1, 1) # B x 1 x E x H x N
             Sz = torch.cat((ztThis, Sz), dim = 1) # B x K x E x H x N
-            
+
             # Reshape and permute to adapt to multiplication with b (happens
             # outside the if)
             bSz = Sz.permute(0, 4, 2, 1, 3).reshape(B, N, E*K*H)
-        
+
         # Get back to proper order
         bSz = bSz.permute(0, 2, 1) # B x EKH x N
         #   And multiply with the coefficients
@@ -1286,7 +1286,7 @@ def GRNN_DB(a, b, S, x, z0, sigma,
         # Sum and apply the nonlinearity
         zt = sigma(Axt + Bzt).unsqueeze(1) # B x 1 x H x N
         z = torch.cat((z, zt), dim = 1) # B x (t+1) x H x N
-    
+
     return z # B x T x H x N
 
 def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones(1),
@@ -1296,13 +1296,13 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
     GatedGRNN(signal_to_hidden_taps, hidden_to_hidden_taps, GSO, input,
             initial_hidden, nonlinearity, input_gate, forget_gate, signal_bias,
             hidden_bias)
-    Computes the sequence of hidden states for the input sequence x following 
-    the equation z_{t} = sigma(Q_hat{A(S) x_{t}} + Q_check{B(S) z_{t-1}}) with 
-    initial state z0 and where sigma is the nonlinearity, A(S) and B(S) are the 
-    Input-to-Hidden filters and the Hidden-to-Hidden filters with the 
+    Computes the sequence of hidden states for the input sequence x following
+    the equation z_{t} = sigma(Q_hat{A(S) x_{t}} + Q_check{B(S) z_{t-1}}) with
+    initial state z0 and where sigma is the nonlinearity, A(S) and B(S) are the
+    Input-to-Hidden filters and the Hidden-to-Hidden filters with the
     corresponding taps, Q_hat is the input gate operator and Q_check the forget
     gate operator
-    
+
     Inputs:
         signal_to_hidden_taps (torch.tensor): shape
             hidden_features x edge_features x filter_taps x signal_features
@@ -1315,7 +1315,7 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
         initial_hidden: shape
             batch_size x hidden_features x number_nodes
         input_gate: shape depends on the type of gating
-            > no gating 
+            > no gating
                 torch.ones(1)
             > time gating:
                 batch_size x time x 1 x 1
@@ -1324,26 +1324,26 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
             > edge gating:
                 batch_size x time x 1 x number_nodes x number_nodes
         forget_gate: shape depends on the type of gating
-            > no gating 
+            > no gating
                 torch.ones(1)
             > time gating:
                 batch_size x time x 1 x 1
             > node gating:
                 batch_size x time x 1 x number_nodes
             > edge gating:
-                batch_size x time x 1 x number_nodes x number_nodes              
+                batch_size x time x 1 x number_nodes x number_nodes
         signal_bias (torch.tensor): shape
             1 x 1 x hidden_features x 1
         hidden_bias (torch.tensor): shape
             1 x 1 x hidden_features x 1
-    
+
     Outputs:
         hidden_state: shape
             batch_size x time x hidden_features x number_nodes
-            
+
     """
     # We will compute the hidden state for a delayed and batch data.
-    
+
     # So, the input
     #   a: H x E x K x F (Input to Hidden filters)
     #   b: H x E x K x H (Hidden to Hidden filters)
@@ -1355,7 +1355,7 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
     # And the output has to be
     #   z: B x T x H x N (Hidden state signal)
     # q_hat and q_check depend on type of gating
-    
+
     # Check dimensions
     H = a.shape[0] # Number of hidden state features
     E = a.shape[1] # Number of edge features
@@ -1389,13 +1389,13 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
         assert q_check.shape[3] == 1 or q_check.shape[3] == N
         if len(q_check.shape) > 4:
             assert q_check.shape[4] == N
-    
+
     # Checking if there is bias
     if xBias is not None:
         xBias = xBias.reshape(1,H,1)
     if zBias is not None:
         zBias = zBias.reshape(1,H,1)
-    
+
     # We start by handling the input to state transformation Ax
     # First, we have to check if we are NOT doing edge gating
     if len(q_hat.shape) < 5:
@@ -1413,18 +1413,18 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
         edgeS = edgeS.repeat(B*T,1,1,1) # BT x E x N x N
         # The first step is to gate the GSO
         edgeS = q_hat.reshape([B*T,E,N,N]) * edgeS
-        # Then we reshape x to multiply each batch and sequence element by the 
+        # Then we reshape x to multiply each batch and sequence element by the
         # corresponding gated GSO...
         x = x.reshape([B*T, F, N])
         x = x.unsqueeze(1) # B*T x 1 x F x N
         # ... and follow a similar filtering procedure as in the LSI-GF
         # u is the tensor used to store S^0x, S^1x, ..., S^{K-1}x
-        u = x.reshape([B*T, 1, 1, F, N]).repeat(1, E, 1, 1, 1)   
+        u = x.reshape([B*T, 1, 1, F, N]).repeat(1, E, 1, 1, 1)
         for k in range(1,K):
             x = x.reshape((B*T,F,N))
             x = torch.matmul(x, edgeS) # BT x BT x E x F x N
             x = x.reshape([B*T,B*T,E,F,N])  # BT x BT x E x F x N
-            # We only care about the elements for which the batch-time indices 
+            # We only care about the elements for which the batch-time indices
             # of x match the batch-time indices of S, therefore we take the
             # diagonal along dimensions 0 and 1
             x = torch.diagonal(x) # E x F x N x BT
@@ -1445,11 +1445,11 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
         # Finally, add the bias
         if xBias is not None:
             Ax = Ax + xBias
-        # We have merged the batch and time dimensions of x and S to apply the 
+        # We have merged the batch and time dimensions of x and S to apply the
         # linear shift-invariant graph filter. Now, we re-add the time dimension
         Ax = Ax.reshape((B,T,H,N))
         # This is the filtered signal for all time instants
-    
+
     # The second step is to handle the state-to-state transformation Bz
     # Assign first state as initial state
     zt = z0
@@ -1460,21 +1460,21 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
             # We apply the filter B(S) to the hidden state at time t-1
             Bzt = LSIGF(b, S, zt.reshape((B,H,N)),
                        b = zBias) # B x H x N
-            # Then, if there is a gate, we select the gate corresponding to 
+            # Then, if there is a gate, we select the gate corresponding to
             # instant t...
             if len(q_check.shape) > 1:
-                this_q_check = torch.index_select(q_check, 1, 
+                this_q_check = torch.index_select(q_check, 1,
                                               torch.tensor(t-1, device = q_check.device))
                 this_q_check = this_q_check.squeeze(1) # B x 1 x (1 for time) or (N for node)
             # ... and if there is no gate, this gate is simply equal to the default gate
-            else: 
+            else:
                 this_q_check = q_check
             # and apply it
             Bzt = this_q_check*Bzt
         else:
-            # If we have edge gating, we first have to select the gate corresponding 
+            # If we have edge gating, we first have to select the gate corresponding
             # to instant t
-            this_q_check = torch.index_select(q_check, 1, 
+            this_q_check = torch.index_select(q_check, 1,
                                               torch.tensor(t-1, device = q_check.device))
             this_q_check = this_q_check.squeeze(1) # B x 1 x N x N
             # We also have to add a batch dimension to S
@@ -1486,12 +1486,12 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
             zt = zt.reshape([B, H, N])
             zt = zt.unsqueeze(1) # B x 1 x F x N
             # u is the tensor used to store S^0zt, S^1zt, ..., S^{K-1}zt
-            u = zt.reshape([B, 1, 1, H, N]).repeat(1, E, 1, 1, 1) 
+            u = zt.reshape([B, 1, 1, H, N]).repeat(1, E, 1, 1, 1)
             for k in range(1,K):
                 zt = zt.reshape((B,H,N))
-                zt = torch.matmul(zt, edgeS) 
+                zt = torch.matmul(zt, edgeS)
                 zt = zt.reshape([B,B,E,H,N]) # B x B x E x H x N
-                # We only care about the elements for which the batch-time indices 
+                # We only care about the elements for which the batch-time indices
                 # of zt match the batch-time indices of S, therefore we take the
                 # diagonal along dimensions 0 and 1
                 zt = torch.diagonal(zt) # E x H x N x B
@@ -1512,7 +1512,7 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
             # Finally, add the bias
             if zBias is not None:
                 Bzt = Bzt + zBias
-        
+
         # Now we are able to compute the current state from Ax and Bzt
         # Get the corresponding value of Ax
         Axt = torch.index_select(Ax, 1, torch.tensor(t-1, device = Ax.device))
@@ -1523,7 +1523,7 @@ def GatedGRNN(a, b, S, x, z0, sigma, q_hat = torch.ones(1), q_check = torch.ones
             z = zt # initialize hidden state tensor
         else:
             z = torch.cat((z, zt), dim = 1) # B x (t+1) x H x N
-    
+
     return z # B x T x H x N
 
 #############################################################################
@@ -1583,7 +1583,7 @@ class MaxLocalActivation(nn.Module):
         self.weight = nn.parameter.Parameter(torch.Tensor(1,self.K+1))
         # Initialize parameters
         self.reset_parameters()
-        
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -1653,7 +1653,7 @@ class MaxLocalActivation(nn.Module):
                                                  self.N,
                                                  self.maxNeighborhoodSizes[k-1]]
                                                 )
-            gatherNeighbor = gatherNeighbor.repeat([batchSize, 
+            gatherNeighbor = gatherNeighbor.repeat([batchSize,
                                                     dimNodeSignals,
                                                     1,
                                                     1])
@@ -1670,23 +1670,23 @@ class MaxLocalActivation(nn.Module):
         # multiply each k-hop max by corresponding weight
         out = out.reshape([batchSize,dimNodeSignals,self.N])
         return out
-    
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.K)
         self.weight.data.uniform_(-stdv, stdv)
-    
+
     def extra_repr(self):
         if self.neighborhood is not None:
             reprString = "neighborhood stored"
         else:
             reprString = "NO neighborhood stored"
         return reprString
-    
+
 class MedianLocalActivation(nn.Module):
     # Luana R. Ruiz, rubruiz@seas.upenn.edu, 2019/03/27
     """
-    MedianLocalActivation creates a localized activation function layer on 
+    MedianLocalActivation creates a localized activation function layer on
     graphs
 
     Initialization:
@@ -1701,9 +1701,9 @@ class MedianLocalActivation(nn.Module):
 
     Add graph shift operator:
 
-        MedianLocalActivation.addGSO(GSO) Before applying the filter, we need 
+        MedianLocalActivation.addGSO(GSO) Before applying the filter, we need
         to define the GSO that we are going to use. This allows to change the
-        GSO while using the same filtering coefficients (as long as the number 
+        GSO while using the same filtering coefficients (as long as the number
         of edge features is the same; but the number of nodes can change).
         This function also calculates the 0-,1-,...,K-hop neighborhoods of every
         node
@@ -1738,7 +1738,7 @@ class MedianLocalActivation(nn.Module):
         self.weight = nn.parameter.Parameter(torch.Tensor(1,self.K+1))
         # Initialize parameters
         self.reset_parameters()
-        
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -1770,7 +1770,7 @@ class MedianLocalActivation(nn.Module):
         xK = xK.unsqueeze(3) # extra dimension added for concatenation ahead
         #x = x.unsqueeze(3) # B x F x N x 1
         for k in range(1,self.K+1):
-            kHopNeighborhood = self.neighborhood[k-1] 
+            kHopNeighborhood = self.neighborhood[k-1]
             # Fetching k-hop neighborhoods of all nodes
             kHopMedian = torch.empty(0).to(x.device)
             # Initializing the vector that will contain the k-hop median for
@@ -1794,25 +1794,25 @@ class MedianLocalActivation(nn.Module):
                 kHopMedian = torch.cat([kHopMedian,nodeMedian],2)
                 # Concatenating k-hop medians node by node
             kHopMedian = kHopMedian.unsqueeze(3) # Extra dimension for
-            # concatenation with the previous (k-1)-hop median tensor 
+            # concatenation with the previous (k-1)-hop median tensor
             xK = torch.cat([xK,kHopMedian],3)
         out = torch.matmul(xK,self.weight.unsqueeze(2))
         # Multiplying each k-hop median by corresponding trainable weight
         out = out.reshape([batchSize,dimNodeSignals,self.N])
         return out
-    
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.K)
         self.weight.data.uniform_(-stdv, stdv)
-    
+
     def extra_repr(self):
         if self.neighborhood is not None:
             reprString = "neighborhood stored"
         else:
             reprString = "NO neighborhood stored"
         return reprString
-        
+
 class NoActivation(nn.Module):
     """
     NoActivation creates an activation layer that does nothing
@@ -1834,13 +1834,13 @@ class NoActivation(nn.Module):
     def __init__(self):
         super().__init__()
     def forward(self, x):
-        
+
         return x
-    
+
     def extra_repr(self):
         reprString = "No Activation Function"
         return reprString
-    
+
 #############################################################################
 #                                                                           #
 #                            LAYERS (Pooling)                               #
@@ -1853,7 +1853,7 @@ class NoPool(nn.Module):
     structure and methods of MaxPoolLocal() for consistency. Basically, this
     allows us to change from pooling to no pooling without necessarily creating
     a new architecture.
-    
+
     In any case, we're pretty sure this function should never ship, and pooling
     can be avoided directly when defining the architecture.
     """
@@ -1906,10 +1906,10 @@ class MaxPoolLocal(nn.Module):
         Observation: The selected nodes for the output are always the top ones.
 
     Add a neighborhood set:
-        
+
     Add graph shift operator:
 
-        GraphFilter.addGSO(GSO) Before being used, we need to define the GSO 
+        GraphFilter.addGSO(GSO) Before being used, we need to define the GSO
         that will determine the neighborhood that we are going to pool.
 
         Inputs:
@@ -2026,7 +2026,7 @@ class MaxPoolLocal(nn.Module):
         else:
             reprString += "NO neighborhood stored"
         return reprString
-    
+
 #############################################################################
 #                                                                           #
 #                           LAYERS (Filtering)                              #
@@ -2511,7 +2511,7 @@ class NodeVariantGF(nn.Module):
 class EdgeVariantGF(nn.Module):
     """
     EdgeVariantGF Creates a (linear) layer that applies an edge-variant graph
-        filter using the masking approach. If less nodes than the total number 
+        filter using the masking approach. If less nodes than the total number
         of nodes are selected, then the remaining nodes adopt an LSI filter
         (i.e. it becomes a hybrid edge-variant grpah filter)
 
@@ -2744,7 +2744,7 @@ class GraphFilterARMA(nn.Module):
 
     Add graph shift operator:
 
-        GraphFilterARMA.addGSO(GSO) Before applying the filter, we need to 
+        GraphFilterARMA.addGSO(GSO) Before applying the filter, we need to
         define the GSO that we are going to use. This allows to change the GSO
         while using the same filtering coefficients (as long as the number of
         edge features is the same; but the number of nodes can change).
@@ -2983,7 +2983,7 @@ class GraphFilterAttentional(nn.Module):
     Initialization:
 
         GraphFilterAttentional(in_features, out_features,
-                               filter_taps, attention_heads, 
+                               filter_taps, attention_heads,
                                edge_features=1, bias=True,
                                nonlinearity=nn.functional.relu,
                                concatenate=True)
@@ -3122,10 +3122,694 @@ class GraphFilterAttentional(nn.Module):
         else:
             reprString += "no GSO stored"
         return reprString
-    
+
+class GraphFilterBatchAttentional_Origin(nn.Module):
+    """
+    GraphFilterAttentional Creates a graph convolution attentional layer
+
+    Initialization:
+
+        GraphFilterAttentional(in_features, out_features,
+                               filter_taps, attention_heads,
+                               edge_features=1, bias=True,
+                               nonlinearity=nn.functional.relu,
+                               concatenate=True)
+
+        Inputs:
+            in_features (int): number of input features on top of each node
+            out_features (int): number of output features on top of each node
+            filter_taps (int): number of filter taps (power of the GSO)
+            attention_heads (int): number of attention_heads
+            edge_features (int): number of features on top of each edge
+                (default: 1)
+            bias (bool): include a bias in the LSIGF stage (default: True)
+            nonlinearity (nn.functional): nonlinearity applied after features
+                have been updated through attention (default:nn.functional.relu)
+            concatenate (bool): If True, the output of the attention_heads
+                attention heads are concatenated to form the output features, if
+                False, they are averaged (default: True)
+
+        Output:
+            torch.nn.Module for a graph convolution attentional layer.
+
+    Add graph shift operator:
+
+        GraphFilterAttentional.addGSO(GSO) Before applying the filter, we need
+        to define the GSO that we are going to use. This allows to change the
+        GSO while using the same filtering coefficients (as long as the number
+        of edge features is the same; but the number of nodes can change).
+
+        Inputs:
+            GSO (torch.tensor): graph shift operator; shape:
+                Batch x edge_features x number_nodes x number_nodes
+
+    Forward call:
+
+        y = GraphFilterAttentional(x)
+
+        Inputs:
+            x (torch.tensor): input data; shape:
+                batch_size x in_features x number_nodes
+
+        Outputs:
+            y (torch.tensor): output; shape:
+                batch_size x out_features x number_nodes
+    """
+
+    def __init__(self, G, F, K, P, E = 1, bias = True,
+        nonlinearity = nn.functional.relu, concatenate = True, attentionMode = 'GAT_origin'):
+        # P: Number of heads
+        # GSOs will be added later.
+        # This combines both weight scalars and weight vectors.
+
+        # Initialize parent
+        super().__init__()
+        # Save parameters:
+        self.G = G # in_features
+        self.F = F # out_features
+        self.K = K # filter_taps
+        self.P = P # attention_heads
+        self.E = E # edge_features
+        self.S = None # No GSO assigned yet
+        self.aij = None
+        self.nonlinearity = nonlinearity
+        self.concatenate = concatenate
+        self.attentionMode = attentionMode
+
+        # Create parameters:
+        self.mixer = nn.parameter.Parameter(torch.Tensor(P, E, 2*F))
+        self.weight = nn.parameter.Parameter(torch.Tensor(P, E, F, G))
+        self.filterWeight = nn.parameter.Parameter(torch.Tensor(E, K))
+        if bias:
+            self.bias = nn.parameter.Parameter(torch.Tensor(F, 1))
+        else:
+            self.register_parameter('bias', None)
+        # Initialize parameters
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Taken from _ConvNd initialization of parameters:
+        stdv = 1. / math.sqrt(self.G * self.P)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.mixer.data.uniform_(-stdv, stdv)
+        self.filterWeight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def addGSO(self, S):
+        # Every S has 4 dimensions.
+        assert len(S.shape) == 4
+        # S is of shape B x E x N x N
+        assert S.shape[1] == self.E
+        self.N = S.shape[2]
+        assert S.shape[3] == self.N
+        self.S = S
+
+    def returnAttentionGSO(self):
+        assert len(self.aij.shape) == 5
+        # aij is of shape B x P x E x N x N
+        assert self.aij.shape[2] == self.E
+        self.N = self.aij.shape[3]
+        assert self.aij.shape[3] == self.N
+
+        # aij  B x P x E x N x N -> B  x E x N x N
+        aij_mean = np.mean(self.aij, axis=1)
+
+        # Every S has 4 dimensions.
+        return aij_mean
+
+    def forward(self, x):
+        # x is of shape: batchSize x dimInFeatures x numberNodesIn
+        B = x.shape[0]
+        F = x.shape[1]
+        Nin = x.shape[2]
+        # And now we add the zero padding
+        if Nin < self.N:
+            x = torch.cat((x,
+                           torch.zeros(B, F, self.N-Nin)\
+                                   .type(x.dtype).to(x.device)
+                          ), dim = 2)
+        # And get the graph attention output
+
+        y, aij = graphAttentionLSIGFBatch_Origin(self.filterWeight, x, self.mixer, self.weight, self.S, b=self.bias)
+
+        self.aij = aij.detach().cpu().numpy()
+        # This output is of size B x P x F x N. Now, we can either concatenate
+        # them (inner layers) or average them (outer layer)
+        if self.concatenate:
+            # When we concatenate we first apply the nonlinearity
+            y = self.nonlinearity(y)
+            # Concatenate: Make it B x PF x N such that first iterates over f
+            # and then over p: (p=0,f=0), (p=0,f=1), ..., (p=0,f=F-1), (p=1,f=0),
+            # (p=1,f=1), ..., etc.
+            y = y.permute(0, 3, 1, 2)\
+                    .reshape([B, self.N, self.P*self.F])\
+                    .permute(0, 2, 1)
+        else:
+            # When we don't, we first average
+            y = torch.mean(y, dim = 1) # B x F x N
+            # And then we apply the nonlinearity
+            y = self.nonlinearity(y)
+
+        if Nin < self.N:
+            y = torch.index_select(y, 2, torch.arange(Nin).to(y.device))
+        return y
+
+    def extra_repr(self):
+        reprString = "in_features=%d, " % self.G
+        reprString += "out_features=%d, " % self.F
+        reprString += "filter_taps=%d, " % self.K
+        reprString += "attention_heads=%d, " % self.P
+        reprString += "edge_features=%d, " % self.E
+        reprString += "bias=%s, " % (self.bias is not None)
+        reprString += "attentionMode=%s, " % (self.attentionMode)
+        if self.S is not None:
+            reprString += "GSO stored: number_nodes=%d" % (self.N)
+        else:
+            reprString += "no GSO stored"
+        return reprString
+
+class GraphFilterBatchAttentional_DualHead(nn.Module):
+    """
+    GraphFilterAttentional Creates a graph convolution attentional layer
+
+    Initialization:
+
+        GraphFilterAttentional(in_features, out_features,
+                               filter_taps, attention_heads,
+                               edge_features=1, bias=True,
+                               nonlinearity=nn.functional.relu,
+                               concatenate=True)
+
+        Inputs:
+            in_features (int): number of input features on top of each node
+            out_features (int): number of output features on top of each node
+            filter_taps (int): number of filter taps (power of the GSO)
+            attention_heads (int): number of attention_heads
+            edge_features (int): number of features on top of each edge
+                (default: 1)
+            bias (bool): include a bias in the LSIGF stage (default: True)
+            nonlinearity (nn.functional): nonlinearity applied after features
+                have been updated through attention (default:nn.functional.relu)
+            concatenate (bool): If True, the output of the attention_heads
+                attention heads are concatenated to form the output features, if
+                False, they are averaged (default: True)
+
+        Output:
+            torch.nn.Module for a graph convolution attentional layer.
+
+    Add graph shift operator:
+
+        GraphFilterAttentional.addGSO(GSO) Before applying the filter, we need
+        to define the GSO that we are going to use. This allows to change the
+        GSO while using the same filtering coefficients (as long as the number
+        of edge features is the same; but the number of nodes can change).
+
+        Inputs:
+            GSO (torch.tensor): graph shift operator; shape:
+                Batch x edge_features x number_nodes x number_nodes
+
+    Forward call:
+
+        y = GraphFilterAttentional(x)
+
+        Inputs:
+            x (torch.tensor): input data; shape:
+                batch_size x in_features x number_nodes
+
+        Outputs:
+            y (torch.tensor): output; shape:
+                batch_size x out_features x number_nodes
+    """
+
+    def __init__(self, G, F, K, P, E = 1, bias = True,
+        nonlinearity = nn.functional.relu, concatenate = True, attentionMode = 'GAT_DualHead'):
+        # P: Number of heads
+        # GSOs will be added later.
+        # This combines both weight scalars and weight vectors.
+
+        # Initialize parent
+        super().__init__()
+        # Save parameters:
+        self.G = G # in_features
+        self.F = F # out_features
+        self.K = K # filter_taps
+        self.P = P # attention_heads
+        self.E = E # edge_features
+        self.S = None # No GSO assigned yet
+        self.aij = None
+        self.nonlinearity = nonlinearity
+        self.concatenate = concatenate
+        self.attentionMode = attentionMode
+
+        # Create parameters:
+        self.mixer = nn.parameter.Parameter(torch.Tensor(2*P, E, 2*F))
+        self.weight = nn.parameter.Parameter(torch.Tensor(2*P, E, F, G))
+        self.weight_bias = nn.parameter.Parameter(torch.Tensor(2*P, E, F))
+        self.filterWeight = nn.parameter.Parameter(torch.Tensor(2*P, F, E, K, G))
+        if bias:
+            self.bias = nn.parameter.Parameter(torch.Tensor(F, 1))
+        else:
+            self.register_parameter('bias', None)
+        # Initialize parameters
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Taken from _ConvNd initialization of parameters:
+        stdv = 1. / math.sqrt(self.G * self.P)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.weight_bias.data.uniform_(0, 0)
+        self.mixer.data.uniform_(-stdv, stdv)
+        self.filterWeight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def addGSO(self, S):
+        # Every S has 4 dimensions.
+        assert len(S.shape) == 4
+        # S is of shape B x E x N x N
+        assert S.shape[1] == self.E
+        self.N = S.shape[2]
+        assert S.shape[3] == self.N
+        self.S = S
+
+    def returnAttentionGSO(self):
+        assert len(self.aij.shape) == 5
+        # aij is of shape B x P x E x N x N
+        assert self.aij.shape[2] == self.E
+        self.N = self.aij.shape[3]
+        assert self.aij.shape[3] == self.N
+
+        # aij  B x P x E x N x N -> B  x E x N x N
+        aij_mean = np.mean(self.aij, axis=1)
+
+        # Every S has 4 dimensions.
+        return aij_mean
+
+    def forward(self, x):
+        # x is of shape: batchSize x dimInFeatures x numberNodesIn
+        B = x.shape[0]
+        F = x.shape[1]
+        Nin = x.shape[2]
+        # And now we add the zero padding
+        if Nin < self.N:
+            x = torch.cat((x,
+                           torch.zeros(B, F, self.N-Nin)\
+                                   .type(x.dtype).to(x.device)
+                          ), dim = 2)
+        # And get the graph attention output
+
+        y, aij = graphAttentionLSIGFBatch_DualHead(self.filterWeight, x, self.mixer, self.weight, self.weight_bias, self.S, b=self.bias)
+        self.aij = aij.detach().cpu().numpy()
+
+        # This output is of size B x P x F x N. Now, we can either concatenate
+        # them (inner layers) or average them (outer layer)
+
+        # When we concatenate we first apply the nonlinearity
+        y = self.nonlinearity(y)
+        # Concatenate: Make it B x 2*PF x N such that first iterates over f
+        # and then over p: (p=0,f=0), (p=0,f=1), ..., (p=0,f=F-1), (p=1,f=0),
+        # (p=1,f=1), ..., etc.
+        y = y.permute(0, 3, 1, 2)\
+                .reshape([B, self.N, 2*self.P*self.F])\
+                .permute(0, 2, 1)
+
+        if Nin < self.N:
+            y = torch.index_select(y, 2, torch.arange(Nin).to(y.device))
+        return y
+
+    def extra_repr(self):
+        reprString = "in_features=%d, " % self.G
+        reprString += "out_features=%d, " % self.F
+        reprString += "filter_taps=%d, " % self.K
+        reprString += "attention_heads=%d, " % self.P
+        reprString += "edge_features=%d, " % self.E
+        reprString += "bias=%s, " % (self.bias is not None)
+        reprString += "attentionMode=%s, " % (self.attentionMode)
+
+        if self.S is not None:
+            reprString += "GSO stored: number_nodes=%d" % (self.N)
+        else:
+            reprString += "no GSO stored"
+        return reprString
+
+
+class GraphFilterBatchAttentional(nn.Module):
+    """
+    GraphFilterAttentional Creates a graph convolution attentional layer
+
+    Initialization:
+
+        GraphFilterAttentional(in_features, out_features,
+                               filter_taps, attention_heads,
+                               edge_features=1, bias=True,
+                               nonlinearity=nn.functional.relu,
+                               concatenate=True)
+
+        Inputs:
+            in_features (int): number of input features on top of each node
+            out_features (int): number of output features on top of each node
+            filter_taps (int): number of filter taps (power of the GSO)
+            attention_heads (int): number of attention_heads
+            edge_features (int): number of features on top of each edge
+                (default: 1)
+            bias (bool): include a bias in the LSIGF stage (default: True)
+            nonlinearity (nn.functional): nonlinearity applied after features
+                have been updated through attention (default:nn.functional.relu)
+            concatenate (bool): If True, the output of the attention_heads
+                attention heads are concatenated to form the output features, if
+                False, they are averaged (default: True)
+
+        Output:
+            torch.nn.Module for a graph convolution attentional layer.
+
+    Add graph shift operator:
+
+        GraphFilterAttentional.addGSO(GSO) Before applying the filter, we need
+        to define the GSO that we are going to use. This allows to change the
+        GSO while using the same filtering coefficients (as long as the number
+        of edge features is the same; but the number of nodes can change).
+
+        Inputs:
+            GSO (torch.tensor): graph shift operator; shape:
+                Batch x edge_features x number_nodes x number_nodes
+
+    Forward call:
+
+        y = GraphFilterAttentional(x)
+
+        Inputs:
+            x (torch.tensor): input data; shape:
+                batch_size x in_features x number_nodes
+
+        Outputs:
+            y (torch.tensor): output; shape:
+                batch_size x out_features x number_nodes
+    """
+
+    def __init__(self, G, F, K, P, E = 1, bias = True,
+        nonlinearity = nn.functional.relu, concatenate = True, attentionMode = 'GAT_modified'):
+        # P: Number of heads
+        # GSOs will be added later.
+        # This combines both weight scalars and weight vectors.
+
+        # Initialize parent
+        super().__init__()
+        # Save parameters:
+        self.G = G # in_features
+        self.F = F # out_features
+        self.K = K # filter_taps
+        self.P = P # attention_heads
+        self.E = E # edge_features
+        self.S = None # No GSO assigned yet
+        self.aij = None
+        self.nonlinearity = nonlinearity
+        self.concatenate = concatenate
+        self.attentionMode = attentionMode
+        # Create parameters:
+        self.mixer = nn.parameter.Parameter(torch.Tensor(P, E, 2*F))
+
+        self.weight_bias = nn.parameter.Parameter(torch.Tensor(P, E, F))
+        self.filterWeight = nn.parameter.Parameter(torch.Tensor(P, F, E, K, G))
+        if bias:
+            self.bias = nn.parameter.Parameter(torch.Tensor(F, 1))
+        else:
+            self.register_parameter('bias', None)
+        # Initialize parameters
+        if 'GAT_modified' in attentionMode:
+            # Graph Attention Network
+            # https://arxiv.org/abs/1710.10903
+            self.weight = nn.parameter.Parameter(torch.Tensor(P, E, F, G))
+            # print("This is GAT_modified")
+            self.graphAttentionLSIGFBatch = graphAttentionLSIGFBatch_modified
+        elif attentionMode == 'KeyQuery':
+            # Key and Query mode
+            # https://arxiv.org/abs/2003.09575
+            self.weight = nn.parameter.Parameter(torch.Tensor(P, E, G, G))
+            # print("This is KeyQuery")
+            self.graphAttentionLSIGFBatch = graphAttentionLSIGFBatch_KeyQuery
+
+        # print("{} Go wrong".format(attentionMode))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Taken from _ConvNd initialization of parameters:
+        stdv = 1. / math.sqrt(self.G * self.P)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.weight_bias.data.uniform_(0, 0)
+        self.mixer.data.uniform_(-stdv, stdv)
+        self.filterWeight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def addGSO(self, S):
+        # Every S has 4 dimensions.
+        assert len(S.shape) == 4
+        # S is of shape B x E x N x N
+        assert S.shape[1] == self.E
+        self.N = S.shape[2]
+        assert S.shape[3] == self.N
+        self.S = S
+
+    def returnAttentionGSO(self):
+        assert len(self.aij.shape) == 5
+        # aij is of shape B x P x E x N x N
+        assert self.aij.shape[2] == self.E
+        self.N = self.aij.shape[3]
+        assert self.aij.shape[3] == self.N
+
+        # aij  B x P x E x N x N -> B  x E x N x N
+        aij_mean = np.mean(self.aij, axis=1)
+
+        # Every S has 4 dimensions.
+        return aij_mean
+
+    def forward(self, x):
+        # x is of shape: batchSize x dimInFeatures x numberNodesIn
+        B = x.shape[0]
+        F = x.shape[1]
+        Nin = x.shape[2]
+        # And now we add the zero padding
+        if Nin < self.N:
+            x = torch.cat((x,
+                           torch.zeros(B, F, self.N-Nin)\
+                                   .type(x.dtype).to(x.device)
+                          ), dim = 2)
+        # And get the graph attention output
+
+        y, aij  = self.graphAttentionLSIGFBatch(self.filterWeight, x, self.mixer, self.weight, self.weight_bias, self.S, b=self.bias)
+        self.aij = aij.detach().cpu().numpy()
+
+        # This output is of size B x P x F x N. Now, we can either concatenate
+        # them (inner layers) or average them (outer layer)
+        if self.concatenate:
+            # When we concatenate we first apply the nonlinearity
+            y = self.nonlinearity(y)
+            # Concatenate: Make it B x PF x N such that first iterates over f
+            # and then over p: (p=0,f=0), (p=0,f=1), ..., (p=0,f=F-1), (p=1,f=0),
+            # (p=1,f=1), ..., etc.
+            y = y.permute(0, 3, 1, 2)\
+                    .reshape([B, self.N, self.P*self.F])\
+                    .permute(0, 2, 1)
+        else:
+            # When we don't, we first average
+            y = torch.mean(y, dim = 1) # B x F x N
+            # And then we apply the nonlinearity
+            y = self.nonlinearity(y)
+
+        if Nin < self.N:
+            y = torch.index_select(y, 2, torch.arange(Nin).to(y.device))
+        return y
+
+    def extra_repr(self):
+        reprString = "in_features=%d, " % self.G
+        reprString += "out_features=%d, " % self.F
+        reprString += "filter_taps=%d, " % self.K
+        reprString += "attention_heads=%d, " % self.P
+        reprString += "edge_features=%d, " % self.E
+        reprString += "bias=%s, " % (self.bias is not None)
+        reprString += "attentionMode=%s, " % (self.attentionMode)
+        if self.S is not None:
+            reprString += "GSO stored: number_nodes=%d" % (self.N)
+        else:
+            reprString += "no GSO stored"
+        return reprString
+
+
+
+
+class GraphFilterBatchSimilarityAttentional(nn.Module):
+    """
+    GraphFilterAttentional Creates a graph convolution attentional layer
+
+    Initialization:
+
+        GraphFilterAttentional(in_features, out_features,
+                               filter_taps, attention_heads,
+                               edge_features=1, bias=True,
+                               nonlinearity=nn.functional.relu,
+                               concatenate=True)
+
+        Inputs:
+            in_features (int): number of input features on top of each node
+            out_features (int): number of output features on top of each node
+            filter_taps (int): number of filter taps (power of the GSO)
+            attention_heads (int): number of attention_heads
+            edge_features (int): number of features on top of each edge
+                (default: 1)
+            bias (bool): include a bias in the LSIGF stage (default: True)
+            nonlinearity (nn.functional): nonlinearity applied after features
+                have been updated through attention (default:nn.functional.relu)
+            concatenate (bool): If True, the output of the attention_heads
+                attention heads are concatenated to form the output features, if
+                False, they are averaged (default: True)
+
+        Output:
+            torch.nn.Module for a graph convolution attentional layer.
+
+    Add graph shift operator:
+
+        GraphFilterAttentional.addGSO(GSO) Before applying the filter, we need
+        to define the GSO that we are going to use. This allows to change the
+        GSO while using the same filtering coefficients (as long as the number
+        of edge features is the same; but the number of nodes can change).
+
+        Inputs:
+            GSO (torch.tensor): graph shift operator; shape:
+                Batch x edge_features x number_nodes x number_nodes
+
+    Forward call:
+
+        y = GraphFilterAttentional(x)
+
+        Inputs:
+            x (torch.tensor): input data; shape:
+                batch_size x in_features x number_nodes
+
+        Outputs:
+            y (torch.tensor): output; shape:
+                batch_size x out_features x number_nodes
+    """
+
+    def __init__(self, G, F, K, P, E = 1, bias = True,
+        nonlinearity = nn.functional.relu, concatenate = True, attentionMode = 'GAT_Similarity'):
+        # P: Number of heads
+        # GSOs will be added later.
+        # This combines both weight scalars and weight vectors.
+
+        # Initialize parent
+        super().__init__()
+        # Save parameters:
+        self.G = G # in_features
+        self.F = F # out_features
+        self.K = K # filter_taps
+        self.P = P # attention_heads
+        self.E = E # edge_features
+        self.S = None # No GSO assigned yet
+        self.aij = None
+        self.nonlinearity = nonlinearity
+        self.concatenate = concatenate
+        self.attentionMode = attentionMode
+
+        # Create parameters:
+        self.mixer = nn.parameter.Parameter(torch.Tensor(P, E, 2*F))
+        self.weight_bias = nn.parameter.Parameter(torch.Tensor(P, E, F))
+        self.weight = nn.parameter.Parameter(torch.Tensor(P, E, F, G))
+        # TODO shall we replace this with modified GAT
+        self.filterWeight = nn.parameter.Parameter(torch.Tensor(P, F, E, K, G))
+        if bias:
+            self.bias = nn.parameter.Parameter(torch.Tensor(F, 1))
+        else:
+            self.register_parameter('bias', None)
+        # Initialize parameters
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        # Taken from _ConvNd initialization of parameters:
+        stdv = 1. / math.sqrt(self.G * self.P)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.weight_bias.data.uniform_(0, 0)
+        self.mixer.data.uniform_(-stdv, stdv)
+        self.filterWeight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def addGSO(self, S):
+        # Every S has 4 dimensions.
+        assert len(S.shape) == 4
+        # S is of shape B x E x N x N
+        assert S.shape[1] == self.E
+        self.N = S.shape[2]
+        assert S.shape[3] == self.N
+        self.S = S
+
+    def returnAttentionGSO(self):
+        assert len(self.aij.shape) == 5
+        # aij is of shape B x P x E x N x N
+        assert self.aij.shape[2] == self.E
+        self.N = self.aij.shape[3]
+        assert self.aij.shape[3] == self.N
+
+        # aij  B x P x E x N x N -> B  x E x N x N
+        aij_mean = np.mean(self.aij, axis=1)
+
+        # Every S has 4 dimensions.
+        return aij_mean
+
+    def forward(self, x):
+        # x is of shape: batchSize x dimInFeatures x numberNodesIn
+        B = x.shape[0]
+        F = x.shape[1]
+        Nin = x.shape[2]
+        # And now we add the zero padding
+        if Nin < self.N:
+            x = torch.cat((x,
+                           torch.zeros(B, F, self.N-Nin)\
+                                   .type(x.dtype).to(x.device)
+                          ), dim = 2)
+        # And get the graph attention output
+        y, aij = graphSimilarityAttentionLSIGFBatch(self.filterWeight, x, self.mixer, self.weight, self.weight_bias, self.S, b=self.bias)
+
+        self.aij = aij.detach().cpu().numpy()
+        # This output is of size B x P x F x N. Now, we can either concatenate
+        # them (inner layers) or average them (outer layer)
+        if self.concatenate:
+            # When we concatenate we first apply the nonlinearity
+            y = self.nonlinearity(y)
+            # Concatenate: Make it B x PF x N such that first iterates over f
+            # and then over p: (p=0,f=0), (p=0,f=1), ..., (p=0,f=F-1), (p=1,f=0),
+            # (p=1,f=1), ..., etc.
+            y = y.permute(0, 3, 1, 2)\
+                    .reshape([B, self.N, self.P*self.F])\
+                    .permute(0, 2, 1)
+        else:
+            # When we don't, we first average
+            y = torch.mean(y, dim = 1) # B x F x N
+            # And then we apply the nonlinearity
+            y = self.nonlinearity(y)
+
+        if Nin < self.N:
+            y = torch.index_select(y, 2, torch.arange(Nin).to(y.device))
+        return y
+
+    def extra_repr(self):
+        reprString = "in_features=%d, " % self.G
+        reprString += "out_features=%d, " % self.F
+        reprString += "filter_taps=%d, " % self.K
+        reprString += "attention_heads=%d, " % self.P
+        reprString += "edge_features=%d, " % self.E
+        reprString += "bias=%s, " % (self.bias is not None)
+        reprString += "attentionMode=%s, " % (self.attentionMode)
+
+        if self.S is not None:
+            reprString += "GSO stored: number_nodes=%d" % (self.N)
+        else:
+            reprString += "no GSO stored"
+        return reprString
+
 class EdgeVariantAttentional(nn.Module):
     """
-    EdgeVariantAttentional Creates a layer using an edge variant graph filter 
+    EdgeVariantAttentional Creates a layer using an edge variant graph filter
         parameterized by several attention mechanisms
 
     Initialization:
@@ -3143,7 +3827,7 @@ class EdgeVariantAttentional(nn.Module):
             attention_heads (int): number of attention heads
             edge_features (int): number of features on top of each edge
                 (default: 1)
-            bias (bool): include a bias after the EVGF (default: True)    
+            bias (bool): include a bias after the EVGF (default: True)
             nonlinearity (nn.functional): nonlinearity applied after features
                 have been updated through attention (default:nn.functional.relu)
             concatenate (bool): If True, the output of the attention_heads
@@ -3278,7 +3962,7 @@ class EdgeVariantAttentional(nn.Module):
 class GraphFilter_DB(nn.Module):
     """
     GraphFilter_DB Creates a (linear) layer that applies a graph filter (i.e. a
-        graph convolution) considering batches of GSO and the corresponding 
+        graph convolution) considering batches of GSO and the corresponding
         time delays
 
     Initialization:
@@ -3287,7 +3971,7 @@ class GraphFilter_DB(nn.Module):
                        edge_features=1, bias=True)
 
         Inputs:
-            in_features (int): number of input features (each feature is a 
+            in_features (int): number of input features (each feature is a
                 graph signal)
             out_features (int): number of output features (each feature is a
                 graph signal)
@@ -3312,7 +3996,7 @@ class GraphFilter_DB(nn.Module):
 
         Inputs:
             GSO (torch.tensor): graph shift operator; shape:
-                batch_size x time_samples x edge_features 
+                batch_size x time_samples x edge_features
                                                   x number_nodes x number_nodes
 
     Forward call:
@@ -3391,16 +4075,16 @@ class GraphFilter_DB(nn.Module):
         else:
             reprString += "no GSO stored"
         return reprString
-    
+
 class HiddenState_DB(nn.Module):
     """
     HiddenState_DB Creates the layer for computing the hidden state of a GRNN
-    
+
     Initialization:
-        
+
         HiddenState_DB(signal_features, hidden_features, filter_taps,
                        nonlinearity=torch.tanh, edge_features=1, bias=True)
-        
+
         Inputs:
             signal_features (int): number of signal features
             hidden_features (int): number of hidden state features
@@ -3411,15 +4095,15 @@ class HiddenState_DB(nn.Module):
             edge_features (int): number of features over each edge
             bias (bool): add bias vector (one bias per feature) after each
                 filter
-        
+
         Output:
             torch.nn.Module for a hidden state layer
-            
+
         Observation: Input-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x signal_features
             Hidden-to-Hidden FIlter taps have shape
                 hidden_features x edge_features x filter_taps x hidden_features
-                
+
     Add graph shift operator:
 
     HiddenState_DB.addGSO(GSO) Before applying the layer, we need to define
@@ -3429,9 +4113,9 @@ class HiddenState_DB(nn.Module):
 
     Inputs:
         GSO (torch.tensor): graph shift operator; shape:
-            batch_size x time_samples x edge_features 
+            batch_size x time_samples x edge_features
                                               x number_nodes x number_nodes
-                                              
+
     Forward call:
 
         y = HiddenState_DB(x, z0)
@@ -3450,7 +4134,7 @@ class HiddenState_DB(nn.Module):
     def __init__(self, F, H, K, nonlinearity = torch.tanh, E = 1, bias = True):
         # Initialize parent:
         super().__init__()
-        
+
         # Store the values (using the notation in the paper):
         self.F = F # Input Features
         self.H = H # Hidden Features
@@ -3459,7 +4143,7 @@ class HiddenState_DB(nn.Module):
         self.S = None
         self.bias = bias # Boolean
         self.sigma = nonlinearity # torch.nn.functional
-        
+
         # Create parameters:
         self.aWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, F))
         self.bWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, H))
@@ -3471,7 +4155,7 @@ class HiddenState_DB(nn.Module):
             self.register_parameter('zBias', None)
         # Initialize parameters
         self.reset_parameters()
-        
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.F * self.K)
@@ -3482,7 +4166,7 @@ class HiddenState_DB(nn.Module):
             self.zBias.data.uniform_(-stdv, stdv)
 
     def forward(self, x, z0):
-        
+
         assert self.S is not None
 
         # Input
@@ -3491,7 +4175,7 @@ class HiddenState_DB(nn.Module):
         #   z0: B x H x N
         # Output
         #   z: B x T x H x N
-        
+
         # Check dimensions
         assert len(x.shape) == 4
         B = x.shape[0]
@@ -3500,22 +4184,22 @@ class HiddenState_DB(nn.Module):
         assert self.S.shape[1] == T
         assert x.shape[2] == self.F
         N = x.shape[3]
-        
+
         assert len(z0.shape) == 3
         assert z0.shape[0] == B
         assert z0.shape[1] == self.H
         assert z0.shape[2] == N
-        
+
         z = GRNN_DB(self.aWeights, self.bWeights,
                     self.S, x, z0, self.sigma,
                     xBias = self.xBias, zBias = self.zBias)
-        
-        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device)) 
+
+        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device))
         # Give out the last one, to be used as starting point if used in
         # succession
-        
+
         return z, zT.unsqueeze(1)
-    
+
     def addGSO(self, S):
         # Every S has 5 dimensions.
         assert len(S.shape) == 5
@@ -3524,7 +4208,7 @@ class HiddenState_DB(nn.Module):
         self.N = S.shape[3]
         assert S.shape[4] == self.N
         self.S = S
-    
+
     def extra_repr(self):
         reprString = "in_features=%d, hidden_features=%d, " % (
                         self.F, self.H) + "filter_taps=%d, " % (
@@ -3536,17 +4220,17 @@ class HiddenState_DB(nn.Module):
         else:
             reprString += "no GSO stored"
         return reprString
-    
+
 class HiddenState(nn.Module):
     # Luana R. Ruiz, rubruiz@seas.upenn.edu, 2021/01/28
     """
     HiddenState Creates the layer for computing the hidden state of a GRNN
-    
+
     Initialization:
-        
+
         HiddenState(signal_features, hidden_features, filter_taps,
                        nonlinearity=torch.tanh, edge_features=1, bias=True)
-        
+
         Inputs:
             signal_features (int): number of signal features
             hidden_features (int): number of hidden state features
@@ -3557,15 +4241,15 @@ class HiddenState(nn.Module):
             edge_features (int): number of features over each edge
             bias (bool): add bias vector (one bias per feature) after each
                 filter
-        
+
         Output:
             torch.nn.Module for a hidden state layer
-            
+
         Observation: Input-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x signal_features
             Hidden-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x hidden_features
-                
+
     Add graph shift operator:
 
     HiddenState.addGSO(GSO) Before applying the layer, we need to define
@@ -3576,7 +4260,7 @@ class HiddenState(nn.Module):
     Inputs:
         GSO (torch.tensor): graph shift operator; shape:
             edge_features x number_nodes x number_nodes
-                                              
+
     Forward call:
 
         y = HiddenState(x, z0)
@@ -3595,7 +4279,7 @@ class HiddenState(nn.Module):
     def __init__(self, F, H, K, nonlinearity = torch.tanh, E = 1, bias = True):
         # Initialize parent:
         super().__init__()
-        
+
         # Store the values (using the notation in the paper):
         self.F = F # Input Features
         self.H = H # Hidden Features
@@ -3604,7 +4288,7 @@ class HiddenState(nn.Module):
         self.S = None
         self.bias = bias # Boolean
         self.sigma = nonlinearity # torch.nn.functional
-        
+
         # Create parameters:
         self.aWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, F))
         self.bWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, H))
@@ -3616,7 +4300,7 @@ class HiddenState(nn.Module):
             self.register_parameter('zBias', None)
         # Initialize parameters
         self.reset_parameters()
-        
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.F * self.K)
@@ -3627,7 +4311,7 @@ class HiddenState(nn.Module):
             self.zBias.data.uniform_(-stdv, stdv)
 
     def forward(self, x, z0):
-        
+
         assert self.S is not None
 
         # Input
@@ -3636,29 +4320,29 @@ class HiddenState(nn.Module):
         #   z0: B x H x N
         # Output
         #   z: B x T x H x N
-        
+
         # Check dimensions
         assert len(x.shape) == 4
         B = x.shape[0]
         T = x.shape[1]
         assert x.shape[2] == self.F
         N = x.shape[3]
-        
+
         assert len(z0.shape) == 3
         assert z0.shape[0] == B
         assert z0.shape[1] == self.H
         assert z0.shape[2] == N
-        
+
         z = GatedGRNN(self.aWeights, self.bWeights,
                     self.S, x, z0, self.sigma,
                     xBias = self.xBias, zBias = self.zBias)
-        
-        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device)) 
+
+        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device))
         # Give out the last one, to be used as starting point if used in
         # succession
-        
+
         return z, zT.unsqueeze(1)
-    
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -3667,7 +4351,7 @@ class HiddenState(nn.Module):
         self.N = S.shape[1]
         assert S.shape[2] == self.N
         self.S = S
-    
+
     def extra_repr(self):
         reprString = "in_features=%d, hidden_features=%d, " % (
                         self.F, self.H) + "filter_taps=%d, " % (
@@ -3679,18 +4363,18 @@ class HiddenState(nn.Module):
         else:
             reprString += "no GSO stored"
         return reprString
-    
+
 class TimeGatedHiddenState(nn.Module):
     # Luana R. Ruiz, rubruiz@seas.upenn.edu, 2021/01/28
     """
-    TimeGatedHiddenState Creates the layer for computing the time-gated hidden 
+    TimeGatedHiddenState Creates the layer for computing the time-gated hidden
     state of a GRNN
-    
+
     Initialization:
-        
+
         TimeGatedHiddenState(signal_features, hidden_features, filter_taps,
                        nonlinearity=torch.tanh, edge_features=1, bias=True)
-        
+
         Inputs:
             signal_features (int): number of signal features
             hidden_features (int): number of hidden state features
@@ -3701,15 +4385,15 @@ class TimeGatedHiddenState(nn.Module):
             edge_features (int): number of features over each edge
             bias (bool): add bias vector (one bias per feature) after each
                 filter
-        
+
         Output:
             torch.nn.Module for a time-gated hidden state layer
-            
+
         Observation: Input-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x signal_features
             Hidden-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x hidden_features
-                
+
     Add graph shift operator:
 
     TimeGatedHiddenState.addGSO(GSO) Before applying the layer, we need to define
@@ -3720,7 +4404,7 @@ class TimeGatedHiddenState(nn.Module):
     Inputs:
         GSO (torch.tensor): graph shift operator; shape:
             edge_features x number_nodes x number_nodes
-                                              
+
     Forward call:
 
         y = TimeGatedHiddenState(x, z0)
@@ -3739,7 +4423,7 @@ class TimeGatedHiddenState(nn.Module):
     def __init__(self, F, H, K, nonlinearity = torch.tanh, E = 1, bias = True):
         # Initialize parent:
         super().__init__()
-        
+
         # Store the values (using the notation in the paper):
         self.F = F # Input Features
         self.H = H # Hidden Features
@@ -3748,29 +4432,29 @@ class TimeGatedHiddenState(nn.Module):
         self.S = None
         self.bias = bias # Boolean
         self.sigma = nonlinearity # torch.nn.functional
-        
+
         # Create parameters of the main GRNN
         self.aWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, F))
         self.bWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, H))
-        
-        # Create input gate GRNN 
+
+        # Create input gate GRNN
         self.inputGateGRNN = HiddenState(F, H, K, bias = bias)
-        
+
         # Create forget gate GRNN
         self.forgetGateGRNN = HiddenState(F, H, K, bias = bias)
-    
+
         if self.bias:
             self.xBias = nn.parameter.Parameter(torch.Tensor(H, 1))
             self.zBias = nn.parameter.Parameter(torch.Tensor(H, 1))
         else:
             self.register_parameter('xBias', None)
             self.register_parameter('zBias', None)
-            
+
         # Initialize parameters
         self.reset_parameters()
-        
-        
-        
+
+
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.F * self.K)
@@ -3781,7 +4465,7 @@ class TimeGatedHiddenState(nn.Module):
             self.zBias.data.uniform_(-stdv, stdv)
 
     def forward(self, x, z0):
-        
+
         assert self.S is not None
 
         # Input
@@ -3790,41 +4474,41 @@ class TimeGatedHiddenState(nn.Module):
         #   z0: B x H x N
         # Output
         #   z: B x T x H x N
-        
+
         # Check dimensions
         assert len(x.shape) == 4
         B = x.shape[0]
         T = x.shape[1]
         assert x.shape[2] == self.F
         N = x.shape[3]
-        
+
         assert len(z0.shape) == 3
         assert z0.shape[0] == B
         assert z0.shape[1] == self.H
         assert z0.shape[2] == N
-        
+
         # Calculating input gate
         zHat,_ = self.inputGateGRNN(x, z0)
         zHat = zHat.reshape((B,T,self.H*N))
         qHat = torch.sigmoid(self.inputGateFC(zHat))
         qHat = qHat.unsqueeze(2)
-        
+
         # Calculating forget gate
         zCheck,_ = self.forgetGateGRNN(x, z0)
         zCheck = zCheck.reshape((B,T,self.H*N))
         qCheck = torch.sigmoid(self.forgetGateFC(zCheck))
         qCheck = qCheck.unsqueeze(2)
-        
+
         z = GatedGRNN(self.aWeights, self.bWeights,
                     self.S, x, z0, self.sigma, qHat, qCheck,
                     xBias = self.xBias, zBias = self.zBias)
-        
-        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device)) 
+
+        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device))
         # Give out the last one, to be used as starting point if used in
         # succession
-        
+
         return z, zT.unsqueeze(1)
-    
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -3833,15 +4517,15 @@ class TimeGatedHiddenState(nn.Module):
         self.N = S.shape[1]
         assert S.shape[2] == self.N
         self.S = S
-        
+
         # Create fully connected layers mapping hidden states to gates
         self.inputGateFC = nn.Linear(self.H*self.N, 1, self.bias)
         self.forgetGateFC = nn.Linear(self.H*self.N, 1, self.bias)
-        
+
         # Add GSO to gate GRNNs
         self.inputGateGRNN.addGSO(S)
         self.forgetGateGRNN.addGSO(S)
-    
+
     def extra_repr(self):
         reprString = "in_features=%d, hidden_features=%d, " % (
                         self.F, self.H) + "filter_taps=%d, " % (
@@ -3853,18 +4537,18 @@ class TimeGatedHiddenState(nn.Module):
         else:
             reprString += "no GSO stored"
         return reprString
-    
+
 class NodeGatedHiddenState(nn.Module):
     # Luana R. Ruiz, rubruiz@seas.upenn.edu, 2021/01/28
     """
-    NodeGatedHiddenState Creates the layer for computing the node-gated hidden 
+    NodeGatedHiddenState Creates the layer for computing the node-gated hidden
     state of a GRNN
-    
+
     Initialization:
-        
+
         NodeGatedHiddenState(signal_features, hidden_features, filter_taps,
                        nonlinearity=torch.tanh, edge_features=1, bias=True)
-        
+
         Inputs:
             signal_features (int): number of signal features
             hidden_features (int): number of hidden state features
@@ -3875,15 +4559,15 @@ class NodeGatedHiddenState(nn.Module):
             edge_features (int): number of features over each edge
             bias (bool): add bias vector (one bias per feature) after each
                 filter
-        
+
         Output:
             torch.nn.Module for a node-gated hidden state layer
-            
+
         Observation: Input-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x signal_features
             Hidden-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x hidden_features
-                
+
     Add graph shift operator:
 
     NodeGatedHiddenState.addGSO(GSO) Before applying the layer, we need to define
@@ -3894,7 +4578,7 @@ class NodeGatedHiddenState(nn.Module):
     Inputs:
         GSO (torch.tensor): graph shift operator; shape:
             edge_features x number_nodes x number_nodes
-                                              
+
     Forward call:
 
         y = NodeGatedHiddenState(x, z0)
@@ -3913,7 +4597,7 @@ class NodeGatedHiddenState(nn.Module):
     def __init__(self, F, H, K, nonlinearity = torch.tanh, E = 1, bias = True):
         # Initialize parent:
         super().__init__()
-        
+
         # Store the values (using the notation in the paper):
         self.F = F # Input Features
         self.H = H # Hidden Features
@@ -3922,29 +4606,29 @@ class NodeGatedHiddenState(nn.Module):
         self.S = None
         self.bias = bias # Boolean
         self.sigma = nonlinearity # torch.nn.functional
-        
+
         # Create parameters of the main GRNN
         self.aWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, F))
         self.bWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, H))
-        
-        # Create input gate GRNN 
+
+        # Create input gate GRNN
         self.inputGateGRNN = HiddenState(F, H, K, bias = bias)
-        
+
         # Create forget gate GRNN
         self.forgetGateGRNN = HiddenState(F, H, K, bias = bias)
-    
+
         if self.bias:
             self.xBias = nn.parameter.Parameter(torch.Tensor(H, 1))
             self.zBias = nn.parameter.Parameter(torch.Tensor(H, 1))
         else:
             self.register_parameter('xBias', None)
             self.register_parameter('zBias', None)
-            
+
         # Initialize parameters
         self.reset_parameters()
-        
-        
-        
+
+
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.F * self.K)
@@ -3955,7 +4639,7 @@ class NodeGatedHiddenState(nn.Module):
             self.zBias.data.uniform_(-stdv, stdv)
 
     def forward(self, x, z0):
-        
+
         assert self.S is not None
 
         # Input
@@ -3964,41 +4648,41 @@ class NodeGatedHiddenState(nn.Module):
         #   z0: B x H x N
         # Output
         #   z: B x T x H x N
-        
+
         # Check dimensions
         assert len(x.shape) == 4
         B = x.shape[0]
         T = x.shape[1]
         assert x.shape[2] == self.F
         N = x.shape[3]
-        
+
         assert len(z0.shape) == 3
         assert z0.shape[0] == B
         assert z0.shape[1] == self.H
         assert z0.shape[2] == N
-        
+
         # Calculating input gate
         zHat,_ = self.inputGateGRNN(x, z0)
         zHat = zHat.reshape((B*T,self.H,N))
         qHat = torch.sigmoid(self.inputGateGraphFilter(zHat))
         qHat = qHat.reshape((B,T,1,N))
-        
+
         # Calculating forget gate
         zCheck,_ = self.forgetGateGRNN(x, z0)
         zCheck = zCheck.reshape((B*T,self.H,N))
         qCheck = torch.sigmoid(self.forgetGateGraphFilter(zCheck))
         qCheck = qCheck.reshape((B,T,1,N))
-        
+
         z = GatedGRNN(self.aWeights, self.bWeights,
                     self.S, x, z0, self.sigma, qHat, qCheck,
                     xBias = self.xBias, zBias = self.zBias)
-        
-        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device)) 
+
+        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device))
         # Give out the last one, to be used as starting point if used in
         # succession
-        
+
         return z, zT.unsqueeze(1)
-    
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -4007,17 +4691,17 @@ class NodeGatedHiddenState(nn.Module):
         self.N = S.shape[1]
         assert S.shape[2] == self.N
         self.S = S
-        
+
         # Create linear filters mapping hidden states to gates
         self.inputGateGraphFilter = GraphFilter(self.H, 1, self.K, bias=self.bias)
         self.forgetGateGraphFilter =  GraphFilter(self.H, 1, self.K, bias=self.bias)
-        
+
         # Add GSO to gate GRNNs
         self.inputGateGRNN.addGSO(S)
         self.forgetGateGRNN.addGSO(S)
         self.inputGateGraphFilter.addGSO(S)
         self.forgetGateGraphFilter.addGSO(S)
-    
+
     def extra_repr(self):
         reprString = "in_features=%d, hidden_features=%d, " % (
                         self.F, self.H) + "filter_taps=%d, " % (
@@ -4028,19 +4712,19 @@ class NodeGatedHiddenState(nn.Module):
             reprString += "GSO stored"
         else:
             reprString += "no GSO stored"
-        return reprString    
+        return reprString
 
 class EdgeGatedHiddenState(nn.Module):
     # Luana R. Ruiz, rubruiz@seas.upenn.edu, 2021/01/28
     """
-    EdgeGatedHiddenState Creates the layer for computing the edge-gated hidden 
+    EdgeGatedHiddenState Creates the layer for computing the edge-gated hidden
     state of a GRNN
-    
+
     Initialization:
-        
+
         EdgeGatedHiddenState(signal_features, hidden_features, filter_taps,
                        nonlinearity=torch.tanh, edge_features=1, bias=True)
-        
+
         Inputs:
             signal_features (int): number of signal features
             hidden_features (int): number of hidden state features
@@ -4051,15 +4735,15 @@ class EdgeGatedHiddenState(nn.Module):
             edge_features (int): number of features over each edge
             bias (bool): add bias vector (one bias per feature) after each
                 filter
-        
+
         Output:
             torch.nn.Module for a edge-gated hidden state layer
-            
+
         Observation: Input-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x signal_features
             Hidden-to-Hidden Filter taps have shape
                 hidden_features x edge_features x filter_taps x hidden_features
-                
+
     Add graph shift operator:
 
     EdgeGatedHiddenState.addGSO(GSO) Before applying the layer, we need to define
@@ -4070,7 +4754,7 @@ class EdgeGatedHiddenState(nn.Module):
     Inputs:
         GSO (torch.tensor): graph shift operator; shape:
             edge_features x number_nodes x number_nodes
-                                              
+
     Forward call:
 
         y = EdgeGatedHiddenState(x, z0)
@@ -4089,7 +4773,7 @@ class EdgeGatedHiddenState(nn.Module):
     def __init__(self, F, H, K, nonlinearity = torch.tanh, E = 1, bias = True):
         # Initialize parent:
         super().__init__()
-        
+
         # Store the values (using the notation in the paper):
         self.F = F # Input Features
         self.H = H # Hidden Features
@@ -4098,29 +4782,29 @@ class EdgeGatedHiddenState(nn.Module):
         self.S = None
         self.bias = bias # Boolean
         self.sigma = nonlinearity # torch.nn.functional
-        
+
         # Create parameters of the main GRNN
         self.aWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, F))
         self.bWeights = nn.parameter.Parameter(torch.Tensor(H, E, K, H))
-        
-        # Create input gate GRNN 
+
+        # Create input gate GRNN
         self.inputGateGRNN = HiddenState(F, H, K, bias = bias)
-        
+
         # Create forget gate GRNN
         self.forgetGateGRNN = HiddenState(F, H, K, bias = bias)
-    
+
         if self.bias:
             self.xBias = nn.parameter.Parameter(torch.Tensor(H, 1))
             self.zBias = nn.parameter.Parameter(torch.Tensor(H, 1))
         else:
             self.register_parameter('xBias', None)
             self.register_parameter('zBias', None)
-            
+
         # Initialize parameters
         self.reset_parameters()
-        
-        
-        
+
+
+
     def reset_parameters(self):
         # Taken from _ConvNd initialization of parameters:
         stdv = 1. / math.sqrt(self.F * self.K)
@@ -4131,7 +4815,7 @@ class EdgeGatedHiddenState(nn.Module):
             self.zBias.data.uniform_(-stdv, stdv)
 
     def forward(self, x, z0):
-        
+
         assert self.S is not None
 
         # Input
@@ -4140,43 +4824,43 @@ class EdgeGatedHiddenState(nn.Module):
         #   z0: B x H x N
         # Output
         #   z: B x T x H x N
-        
+
         # Check dimensions
         assert len(x.shape) == 4
         B = x.shape[0]
         T = x.shape[1]
         assert x.shape[2] == self.F
         N = x.shape[3]
-        
+
         assert len(z0.shape) == 3
         assert z0.shape[0] == B
         assert z0.shape[1] == self.H
         assert z0.shape[2] == N
-        
+
         # Calculating input gate
         zHat,_ = self.inputGateGRNN(x, z0)
         zHat = zHat.reshape((B*T,self.H,N))
-        qHat = learnAttentionGSO(zHat, self.inputGateGAT.mixer, 
+        qHat = learnAttentionGSO(zHat, self.inputGateGAT.mixer,
                                 self.inputGateGAT.weight, self.inputGateGAT.S)
         qHat = qHat.reshape((B,T,1,N,N))
-        
+
         # Calculating forget gate
         zCheck,_ = self.forgetGateGRNN(x, z0)
         zCheck = zCheck.reshape((B*T,self.H,N))
-        qCheck = learnAttentionGSO(zCheck, self.forgetGateGAT.mixer, 
+        qCheck = learnAttentionGSO(zCheck, self.forgetGateGAT.mixer,
                                 self.forgetGateGAT.weight, self.forgetGateGAT.S)
         qCheck = qCheck.reshape((B,T,1,N,N))
-        
+
         z = GatedGRNN(self.aWeights, self.bWeights,
                     self.S, x, z0, self.sigma, qHat, qCheck,
                     xBias = self.xBias, zBias = self.zBias)
-        
-        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device)) 
+
+        zT = torch.index_select(z, 1, torch.tensor(T-1, device = z.device))
         # Give out the last one, to be used as starting point if used in
         # succession
-        
+
         return z, zT.unsqueeze(1)
-    
+
     def addGSO(self, S):
         # Every S has 3 dimensions.
         assert len(S.shape) == 3
@@ -4185,17 +4869,17 @@ class EdgeGatedHiddenState(nn.Module):
         self.N = S.shape[1]
         assert S.shape[2] == self.N
         self.S = S
-        
+
         # Create GATs
         self.inputGateGAT = GraphAttentional(self.H, 1, 1)
         self.forgetGateGAT =  GraphAttentional(self.H, 1, 1)
-        
+
         # Add GSO to gate GRNNs
         self.inputGateGRNN.addGSO(S)
         self.forgetGateGRNN.addGSO(S)
         self.inputGateGAT.addGSO(S)
         self.forgetGateGAT.addGSO(S)
-    
+
     def extra_repr(self):
         reprString = "in_features=%d, hidden_features=%d, " % (
                         self.F, self.H) + "filter_taps=%d, " % (
@@ -4206,4 +4890,4 @@ class EdgeGatedHiddenState(nn.Module):
             reprString += "GSO stored"
         else:
             reprString += "no GSO stored"
-        return reprString    
+        return reprString

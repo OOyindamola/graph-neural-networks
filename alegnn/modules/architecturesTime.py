@@ -12,7 +12,7 @@ Unlike architectures.py where the shift operator S is fixed (although it can
 be changed after the architectures has been initialized) and the training set
 consist of a set of {x_b} with b=1,...,B for a total of B samples, here the
 training set is assumed to be a trajectory, and to include a different shift
-operator for each sample {(S_t, x_t)_{t=1}^{T}}_{b=1,...,B}. Also, all 
+operator for each sample {(S_t, x_t)_{t=1}^{T}}_{b=1,...,B}. Also, all
 implementations consider a unit delay exchange (i.e. the S_t and x_t values
 get delayed by one unit of time for each neighboring exchange).
 
@@ -25,8 +25,14 @@ AggregationGNN_DB: implements the aggregation GNN architecture
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import alegnn.utils.graphML as gml
+import alegnn.utils.graphTools as graphTools
+from torchsummaryX import summary
+from alegnn.modules.resnet_pytorch import *
+from alegnn.modules.weights_initializer import weights_init
+
 
 zeroTolerance = 1e-9 # Absolute values below this number are considered zero.
 
@@ -61,15 +67,15 @@ class LocalGNN_DB(nn.Module):
                 Therefore, for L layers, len(dimNodeSignals) = L+1. Slightly
                 different, nFilterTaps[l] is the number of filter taps for the
                 filters implemented at layer l+1, thus len(nFilterTaps) = L.
-                
+
             /** Activation function **/
             nonlinearity (torch.nn): module from torch.nn non-linear activations
-            
+
             /** Readout layers **/
             dimReadout (list of int): number of output hidden units of a
                 sequence of fully connected layers applied locally at each node
                 (i.e. no exchange of information involved).
-                
+
             /** Graph structure **/
             dimEdgeFeatures (int): number of edge features
 
@@ -90,24 +96,24 @@ class LocalGNN_DB(nn.Module):
                                                     x numberNodes x numberNodes
 
         Output:
-            y (torch.tensor): output data after being processed by the GNN; 
+            y (torch.tensor): output data after being processed by the GNN;
                 batchSize x timeSamples x dimReadout[-1] x numberNodes
-                
+
     Other methods:
-            
+
         y, yGNN = .splitForward(x, S): gives the output of the entire GNN y,
         which has shape batchSize x timeSamples x dimReadout[-1] x numberNodes,
         as well as the output of all the GNN layers (i.e. before the readout
         layers), yGNN of shape batchSize x timeSamples x dimFeatures[-1]
         x numberNodes. This can be used to isolate the effect of the graph
         convolutions from the effect of the readout layer.
-        
+
         y = .singleNodeForward(x, S, nodes): outputs the value of the last
-        layer at a single node. x is the usual input of shape batchSize 
+        layer at a single node. x is the usual input of shape batchSize
         x timeSamples x dimFeatures x numberNodes. nodes is either a single
         node (int) or a collection of nodes (list or numpy.array) of length
         batchSize, where for each element in the batch, we get the output at
-        the single specified node. The output y is of shape batchSize 
+        the single specified node. The output y is of shape batchSize
         x timeSamples x dimReadout[-1].
     """
 
@@ -124,7 +130,7 @@ class LocalGNN_DB(nn.Module):
         super().__init__()
         # dimNodeSignals should be a list and of size 1 more than nFilter taps.
         assert len(dimNodeSignals) == len(nFilterTaps) + 1
-        
+
         # Store the values (using the notation in the paper):
         self.L = len(nFilterTaps) # Number of graph filtering layers
         self.F = dimNodeSignals # Features
@@ -150,7 +156,7 @@ class LocalGNN_DB(nn.Module):
         #\\\ MLP (Fully Connected Layers) \\\
         fc = []
         if len(self.dimReadout) > 0: # Maybe we don't want to readout anything
-            # The first layer has to connect whatever was left of the graph 
+            # The first layer has to connect whatever was left of the graph
             # filtering stage to create the number of features required by
             # the readout layer
             fc.append(nn.Linear(self.F[-1], dimReadout[0], bias = self.bias))
@@ -182,13 +188,13 @@ class LocalGNN_DB(nn.Module):
         assert S.shape[2] == self.E
         N = S.shape[3]
         assert S.shape[4] == N
-        
+
         assert len(x.shape) == 4
         assert x.shape[0] == B
         assert x.shape[1] == T
         assert x.shape[2] == self.F[0]
         assert x.shape[3] == N
-        
+
         # Add the GSO at each layer
         for l in range(self.L):
             self.GFL[2*l].addGSO(S)
@@ -201,39 +207,39 @@ class LocalGNN_DB(nn.Module):
         # Reshape and return
         return y.permute(0, 1, 3, 2), yGFL
         # B x T x dimReadout[-1] x N, B x T x dimFeatures[-1] x N
-    
+
     def forward(self, x, S):
-        
+
         # Most of the times, we just need the actual, last output. But, since in
         # this case, we also want to compare with the output of the GNN itself,
         # we need to create this other forward funciton that takes both outputs
         # (the GNN and the MLP) and returns only the MLP output in the proper
         # forward function.
         output, _ = self.splitForward(x, S)
-        
+
         return output
-    
+
     def singleNodeForward(self, x, S, nodes):
-        
+
         # x is of shape B x T x F[0] x N
         batchSize = x.shape[0]
         N = x.shape[3]
-        
+
         # nodes is either an int, or a list/np.array of ints of size B
         assert type(nodes) is int \
                 or type(nodes) is list \
                 or type(nodes) is np.ndarray
-        
+
         # Let us start by building the selection matrix
         # This selection matrix has to be a matrix of shape
         #   B x 1 x N[-1] x 1
         # so that when multiplying with the output of the forward, we get a
         #   B x T x dimRedout[-1] x 1
         # and we just squeeze the last dimension
-        
+
         # TODO: The big question here is if multiplying by a matrix is faster
         # than doing torch.index_select
-        
+
         # Let's always work with numpy arrays to make it easier.
         if type(nodes) is int:
             # Change the node number to accommodate the new order
@@ -250,7 +256,7 @@ class LocalGNN_DB(nn.Module):
                                                                 for n in nodes])
             nodes = newNodes.astype(np.int)
         # Now, nodes is an np.int np.ndarray with shape batchSize
-        
+
         # Build the selection matrix
         selectionMatrix = np.zeros([batchSize, 1, N, 1])
         selectionMatrix[np.arange(batchSize), nodes, 0] = 1.
@@ -258,33 +264,33 @@ class LocalGNN_DB(nn.Module):
         selectionMatrix = torch.tensor(selectionMatrix,
                                        dtype = x.dtype,
                                        device = x.device)
-        
+
         # Now compute the output
         y = self.forward(x, S)
         # This output is of size B x T x dimReadout[-1] x N
-        
+
         # Multiply the output
         y = torch.matmul(y, selectionMatrix)
         #   B x T x dimReadout[-1] x 1
-        
+
         # Squeeze the last dimension and return
         return y.squeeze(3)
-    
+
 class GraphRecurrentNN_DB(nn.Module):
     """
     GraphRecurrentNN_DB: implements the GRNN architecture on a time-varying GSO
         batch and delayed signals. It is a single-layer GRNN and the hidden
         state is initialized at random drawing from a standard gaussian.
-    
+
     Initialization:
-        
+
         GraphRecurrentNN_DB(dimInputSignals, dimOutputSignals,
                             dimHiddenSignals, nFilterTaps, bias, # Filtering
                             nonlinearityHidden, nonlinearityOutput,
                             nonlinearityReadout, # Nonlinearities
                             dimReadout, # Local readout layer
                             dimEdgeFeatures) # Structure
-        
+
         Input:
             /** Graph convolutions **/
             dimInputSignals (int): dimension of the input signals
@@ -295,7 +301,7 @@ class GraphRecurrentNN_DB(nn.Module):
                 state equation, the second one is the number of filter taps
                 for the filters in the output
             bias (bool): include bias after graph filter on every layer
-            
+
             /** Activation functions **/
             nonlinearityHidden (torch.function): the nonlinearity to apply
                 when computing the hidden state; it has to be a torch function,
@@ -307,24 +313,24 @@ class GraphRecurrentNN_DB(nn.Module):
                 end of the readout layer (if the readout layer has more than
                 one layer); this one has to be a nn.Module, instead of just a
                 torch function.
-                
+
             /** Readout layer **/
             dimReadout (list of int): number of output hidden units of a
                 sequence of fully connected layers applied locally at each node
                 (i.e. no exchange of information involved).
-                
+
             /** Graph structure **/
             dimEdgeFeatures (int): number of edge features
-            
+
         Output:
             nn.Module with a GRNN architecture with the above specified
             characteristics that considers time-varying batch GSO and delayed
             signals
-    
+
     Forward call:
-        
+
         GraphRecurrentNN_DB(x, S)
-        
+
         Input:
             x (torch.tensor): input data of shape
                 batchSize x timeSamples x dimInputSignals x numberNodes
@@ -333,24 +339,24 @@ class GraphRecurrentNN_DB(nn.Module):
                                                     x numberNodes x numberNodes
 
         Output:
-            y (torch.tensor): output data after being processed by the GRNN; 
+            y (torch.tensor): output data after being processed by the GRNN;
                 batchSize x timeSamples x dimReadout[-1] x numberNodes
-        
+
     Other methods:
-            
+
         y, yGNN = .splitForward(x, S): gives the output of the entire GRNN y,
         which has shape batchSize x timeSamples x dimReadout[-1] x numberNodes,
-        as well as the output of the GRNN (i.e. before the readout layers), 
-        yGNN of shape batchSize x timeSamples x dimInputSignals x numberNodes. 
-        This can be used to isolate the effect of the graph convolutions from 
+        as well as the output of the GRNN (i.e. before the readout layers),
+        yGNN of shape batchSize x timeSamples x dimInputSignals x numberNodes.
+        This can be used to isolate the effect of the graph convolutions from
         the effect of the readout layer.
-        
+
         y = .singleNodeForward(x, S, nodes): outputs the value of the last
-        layer at a single node. x is the usual input of shape batchSize 
+        layer at a single node. x is the usual input of shape batchSize
         x timeSamples x dimInputSignals x numberNodes. nodes is either a single
         node (int) or a collection of nodes (list or numpy.array) of length
         batchSize, where for each element in the batch, we get the output at
-        the single specified node. The output y is of shape batchSize 
+        the single specified node. The output y is of shape batchSize
         x timeSamples x dimReadout[-1].
     """
     def __init__(self,
@@ -369,11 +375,11 @@ class GraphRecurrentNN_DB(nn.Module):
                  dimEdgeFeatures):
         # Initialize parent:
         super().__init__()
-        
+        print("RNN ARCHITECTURE")
         # A list of two int, one for the number of filter taps (the computation
         # of the hidden state has the same number of filter taps)
         assert len(nFilterTaps) == 2
-        
+
         # Store the values (using the notation in the paper):
         self.F = dimInputSignals # Number of input features
         self.G = dimOutputSignals # Number of output features
@@ -397,7 +403,7 @@ class GraphRecurrentNN_DB(nn.Module):
         #\\\ MLP (Fully Connected Layers) \\\
         fc = []
         if len(self.dimReadout) > 0: # Maybe we don't want to readout anything
-            # The first layer has to connect whatever was left of the graph 
+            # The first layer has to connect whatever was left of the graph
             # filtering stage to create the number of features required by
             # the readout layer
             fc.append(nn.Linear(self.G, dimReadout[0], bias = self.bias))
@@ -415,7 +421,7 @@ class GraphRecurrentNN_DB(nn.Module):
         # And we're done
         self.Readout = nn.Sequential(*fc)
         # so we finally have the architecture.
-        
+
     def splitForward(self, x, S):
 
         # Check the dimensions of the input
@@ -429,21 +435,21 @@ class GraphRecurrentNN_DB(nn.Module):
         assert S.shape[2] == self.E
         N = S.shape[3]
         assert S.shape[4] == N
-        
+
         assert len(x.shape) == 4
         assert x.shape[0] == B
         assert x.shape[1] == T
         assert x.shape[2] == self.F
         assert x.shape[3] == N
-        
+
         # This can be generated here or generated outside of here, not clear yet
         # what's the most coherent option
         z0 = torch.randn((B, self.H, N), device = x.device)
-        
+
         # Add the GSO for each graph filter
         self.hiddenState.addGSO(S)
         self.outputState.addGSO(S)
-        
+
         # Compute the trajectory of hidden states
         z, _ = self.hiddenState(x, z0)
         # Compute the output trajectory from the hidden states
@@ -457,39 +463,39 @@ class GraphRecurrentNN_DB(nn.Module):
         # Reshape and return
         return y.permute(0, 1, 3, 2), yOut
         # B x T x dimReadout[-1] x N, B x T x dimFeatures[-1] x N
-    
+
     def forward(self, x, S):
-        
+
         # Most of the times, we just need the actual, last output. But, since in
         # this case, we also want to compare with the output of the GNN itself,
         # we need to create this other forward funciton that takes both outputs
         # (the GNN and the MLP) and returns only the MLP output in the proper
         # forward function.
         output, _ = self.splitForward(x, S)
-        
+
         return output
-        
+
     def singleNodeForward(self, x, S, nodes):
-        
+
         # x is of shape B x T x F[0] x N
         batchSize = x.shape[0]
         N = x.shape[3]
-        
+
         # nodes is either an int, or a list/np.array of ints of size B
         assert type(nodes) is int \
                 or type(nodes) is list \
                 or type(nodes) is np.ndarray
-        
+
         # Let us start by building the selection matrix
         # This selection matrix has to be a matrix of shape
         #   B x 1 x N[-1] x 1
         # so that when multiplying with the output of the forward, we get a
         #   B x T x dimRedout[-1] x 1
         # and we just squeeze the last dimension
-        
+
         # TODO: The big question here is if multiplying by a matrix is faster
         # than doing torch.index_select
-        
+
         # Let's always work with numpy arrays to make it easier.
         if type(nodes) is int:
             # Change the node number to accommodate the new order
@@ -506,7 +512,7 @@ class GraphRecurrentNN_DB(nn.Module):
                                                                 for n in nodes])
             nodes = newNodes.astype(np.int)
         # Now, nodes is an np.int np.ndarray with shape batchSize
-        
+
         # Build the selection matrix
         selectionMatrix = np.zeros([batchSize, 1, N, 1])
         selectionMatrix[np.arange(batchSize), nodes, 0] = 1.
@@ -514,15 +520,15 @@ class GraphRecurrentNN_DB(nn.Module):
         selectionMatrix = torch.tensor(selectionMatrix,
                                        dtype = x.dtype,
                                        device = x.device)
-        
+
         # Now compute the output
         y = self.forward(x, S)
         # This output is of size B x T x dimReadout[-1] x N
-        
+
         # Multiply the output
         y = torch.matmul(y, selectionMatrix)
         #   B x T x dimReadout[-1] x 1
-        
+
         # Squeeze the last dimension and return
         return y.squeeze(3)
 
@@ -544,20 +550,20 @@ class AggregationGNN_DB(nn.Module):
                 Therefore, for L layers, len(dimFeatures) = L+1. Slightly
                 different, nFilterTaps[l] is the number of filter taps for the
                 filters implemented at layer l+1, thus len(nFilterTaps) = L.
-                
+
             /** Activation function **/
             nonlinearity (torch.nn): module from torch.nn non-linear activations
-            
+
             /** Pooling **/
             poolingFunction (torch.nn): module from torch.nn pooling layers
             poolingSize (list of int): size of the neighborhood to compute the
                 summary from at each layer
-                
+
             /** Readout layer **/
             dimReadout (list of int): number of output hidden units of a
                 sequence of fully connected layers after the filters have
                 been applied
-                
+
             /** Graph structure **/
             dimEdgeFeatures (int): number of edge features
             nExchanges (int): maximum number of neighborhood exchanges
@@ -597,7 +603,7 @@ class AggregationGNN_DB(nn.Module):
         assert len(poolingSize) == len(nFilterTaps)
         # Check whether the GSO has features or not. After that, always handle
         # it as a matrix of dimension E x N x N.
-        
+
         # Store the values (using the notation in the paper):
         self.L = len(nFilterTaps) # Number of convolutional layers
         self.F = dimFeatures # Features
@@ -669,7 +675,7 @@ class AggregationGNN_DB(nn.Module):
         self.Readout = nn.Sequential(*fc)
 
     def forward(self, x, S):
-        
+
         # Check the dimensions of the input first
         #   S: B x T (x E) x N x N
         #   x: B x T x F[0] x N
@@ -688,31 +694,31 @@ class AggregationGNN_DB(nn.Module):
         assert x.shape[1] == T
         assert x.shape[2] == self.F[0]
         assert x.shape[3] == N
-        
+
         # Now we need to do the exchange to build the aggregation vector at
         # every node
         # z has to be of shape: B x T x F[0] x (nExchanges+1) x N
         # to be fed into conv1d it has to be (B*T*N) x F[0] x (nExchanges+1)
-        
+
         # This vector is built by multiplying x with S, so we need to adapt x
         # to have a dimension that can be multiplied by S (we need to add the
         # E dimension)
         x = x.reshape([B, T, 1, self.F[0], N]).repeat(1, 1, self.E, 1, 1)
-        
+
         # The first element of z is, precisely, this element (no exchanges)
         z = x.reshape([B, T, 1, self.E, self.F[0], N]) # The new dimension is
         #   the one that accumulates the nExchanges
-        
+
         # Now we start with the exchanges (multiplying by S)
         for k in range(1, self.nExchanges+1):
-            # Across dim = 1 (time) we need to "displace the dimension down", 
+            # Across dim = 1 (time) we need to "displace the dimension down",
             # i.e. where it used to be t = 1 we now need it to be t=0 and so
             # on. For t=0 we add a "row" of zeros.
             x, _ = torch.split(x, [T-1, 1], dim = 1)
-            #   The second part is the most recent time instant which we do 
+            #   The second part is the most recent time instant which we do
             #   not need anymore (it's used only once for the first value of K)
             # Now, we need to add a "row" of zeros at the beginning (for t = 0)
-            zeroRow = torch.zeros(B, 1, self.E, self.F[0], N, 
+            zeroRow = torch.zeros(B, 1, self.E, self.F[0], N,
                                   dtype=x.dtype,device=x.device)
             x = torch.cat((zeroRow, x), dim = 1)
             # And now we multiply with S
@@ -721,7 +727,7 @@ class AggregationGNN_DB(nn.Module):
             xS = x.reshape(B, T, 1, self.E, self.F[0], N)
             # And concatenate it with z
             z = torch.cat((z, xS), dim = 2)
-        
+
         # Now, we have finally built the vector of delayed aggregations. This
         # vector has shape B x T x (nExchanges+1) x E x F[0] x N
         # To get rid of the edge features (dim E) we just sum through that
@@ -735,8 +741,8 @@ class AggregationGNN_DB(nn.Module):
         # dimensionsonality of the data (which could be fine) but need to be
         # adapted so that the first input in the conv1d takes self.E*self.F[0]
         # features instead of just self.F[0]
-            
-        # The operation conv1d takes tensors of shape 
+
+        # The operation conv1d takes tensors of shape
         #   batchSize x nFeatures x nEntries
         # This means that the convolution takes place along nEntries with
         # a summation along nFeatures, for each of the elements along
@@ -748,7 +754,7 @@ class AggregationGNN_DB(nn.Module):
         # applied.
         # Therefore, we want a vector z of shape
         #   (B*T*N) x F[0] x (nExchanges+1)
-        
+
         # Let's get started with this reorganization
         #   First, we join B*T*N. Because we always join the last dimensions,
         #   we need to permute first to put B, T, N as the last dimensions.
@@ -758,7 +764,7 @@ class AggregationGNN_DB(nn.Module):
         #   F[0] x (nExchanges+1) x B*T*N
         #   Second, we put it back at the beginning
         z = z.permute(2, 0, 1) # B*T*N x F[0] x (nExchanges+1)
-        
+
         # Let's call the convolutional layers
         y = self.ConvLayers(z)
         #   B*T*N x F[-1] x N[-1]
@@ -780,3 +786,369 @@ class AggregationGNN_DB(nn.Module):
         # GSOs. So we need to move them ourselves.
         # Call the parent .to() method (to move the registered parameters)
         super().to(device)
+
+
+class GraphAttentionNN(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.numAgents = self.config.num_agents
+        numAction = self.config.numAction
+        use_vgg = False
+
+        self.S = None
+
+
+        inW = self.config.FOV + 2
+        inH = self.config.FOV + 2
+
+
+        convW = [inW]
+        convH = [inH]
+
+
+
+
+        # ------------------ DCP v1.4  -  with maxpool + non stride in CNN - less feature
+        numChannel = [3] + [32, 32, 64, 64, 128]
+        numStride = [1, 1, 1, 1, 1]
+
+        dimCompressMLP = 1
+        numCompressFeatures = [self.config.numInputFeatures]
+
+        nMaxPoolFilterTaps = 2
+        numMaxPoolStride = 2
+        # # 1 layer origin
+        dimNodeSignals = [self.config.numInputFeatures]
+
+        # # 2 layer - upsampling
+        # dimNodeSignals = [256, self.config.numInputFeatures]
+
+        # # 2 layer - down sampling
+        # dimNodeSignals = [64, self.config.numInputFeatures]
+        #
+        # # 2 layer - down sampling -v2
+        # dimNodeSignals = [64, 32]
+        #
+
+
+        ## ------------------ GCN -------------------- ##
+        # dimNodeSignals = [2 ** 7]
+        # nGraphFilterTaps = [self.config.nGraphFilterTaps,self.config.nGraphFilterTaps] # [2]
+        nGraphFilterTaps = [self.config.nGraphFilterTaps]
+        nAttentionHeads = [self.config.nAttentionHeads]
+        # --- actionMLP
+        if self.config.use_dropout:
+            dimActionMLP = 2
+            numActionFeatures = [self.config.numInputFeatures, numAction]
+        else:
+            dimActionMLP = 1
+            numActionFeatures = [numAction]
+
+        #####################################################################
+        #                                                                   #
+        #                CNN to extract feature                             #
+        #                                                                   #
+        #####################################################################
+        if use_vgg:
+            self.ConvLayers = self.make_layers(cfg, batch_norm=True)
+            self.compressMLP = nn.Sequential(
+                nn.Linear(512, 4096),
+                nn.ReLU(inplace=True),
+                nn.Dropout(),
+                nn.Linear(4096, 4096),
+                nn.ReLU(inplace=True),
+                nn.Dropout(),
+                nn.Linear(4096, 128)
+            )
+            numCompressFeatures = [128]
+
+        else:
+            if self.config.CNN_mode == 'ResNetSlim_withMLP':
+                convl = []
+                convl.append(ResNetSlim(BasicBlock, [1, 1], out_map=False))
+                convl.append(nn.Dropout(0.2))
+                convl.append(nn.Flatten())
+                convl.append(nn.Linear(in_features=1152, out_features=self.config.numInputFeatures, bias=True))
+                self.ConvLayers = nn.Sequential(*convl)
+                numFeatureMap = self.config.numInputFeatures
+            elif self.config.CNN_mode == 'ResNetLarge_withMLP':
+                convl = []
+                convl.append(ResNet(BasicBlock, [1, 1, 1], out_map=False))
+                convl.append(nn.Dropout(0.2))
+                convl.append(nn.Flatten())
+                convl.append(nn.Linear(in_features=1152, out_features=self.config.numInputFeatures, bias=True))
+                self.ConvLayers = nn.Sequential(*convl)
+                numFeatureMap = self.config.numInputFeatures
+            elif self.config.CNN_mode == 'ResNetSlim':
+                convl = []
+                convl.append(ResNetSlim(BasicBlock, [1, 1], out_map=False))
+                convl.append(nn.Dropout(0.2))
+                self.ConvLayers = nn.Sequential(*convl)
+                numFeatureMap = 1152
+            elif self.config.CNN_mode == 'ResNetLarge':
+                convl = []
+                convl.append(ResNet(BasicBlock, [1, 1, 1], out_map=False))
+                convl.append(nn.Dropout(0.2))
+                self.ConvLayers = nn.Sequential(*convl)
+                numFeatureMap = 1152
+            elif self.config.CNN_mode == 'Conv1D':
+                convl = []
+                self.L = len(numChannel) - 1
+                self.K = nGraphFilterTaps  # nFilterTaps # Filter taps
+                self.E = 1  # Number of edge features
+
+                for l in range(self.L):
+                    outConvN = self.N[l] - (self.K[l] - 1) # Size of the conv output
+                    # The next equation to compute the number of nodes is obtained from
+                    # the maxPool1d help in the pytorch documentation
+                    self.N += [int(
+                                   (outConvN - (self.alpha[l]-1) - 1)/self.alpha[l] + 1
+                                            )]
+                for l in range(self.L):
+                    #\\ Graph filtering stage:
+                    convl.append(nn.Conv1d(self.F[l]*self.E,
+                                           self.F[l+1]*self.E,
+                                           self.K[l],
+                                           bias = self.config.bias))
+                    #\\ Nonlinearity
+                    convl.append(nn.ReLU(inplace=True))
+                    #\\ Pooling
+                    convl.append(self.rho(self.alpha[l]))
+
+                self.ConvLayers = nn.Sequential(*convl)
+
+
+            else:
+                convl = []
+                numConv = len(numChannel) - 1
+                nFilterTaps = [3] * numConv
+                nPaddingSzie = [1] * numConv
+                for l in range(numConv):
+                    convl.append(nn.Conv2d(in_channels=numChannel[l], out_channels=numChannel[l + 1],
+                                           kernel_size=nFilterTaps[l], stride=numStride[l], padding=nPaddingSzie[l],
+                                           bias=True))
+                    convl.append(nn.BatchNorm2d(num_features=numChannel[l + 1]))
+                    convl.append(nn.ReLU(inplace=True))
+
+                    # if self.config.use_dropout:
+                    #     convl.append(nn.Dropout(p=0.2))
+
+                    W_tmp = int((convW[l] - nFilterTaps[l] + 2 * nPaddingSzie[l]) / numStride[l]) + 1
+                    H_tmp = int((convH[l] - nFilterTaps[l] + 2 * nPaddingSzie[l]) / numStride[l]) + 1
+                    # Adding maxpooling
+                    if l % 2 == 0:
+                        convl.append(nn.MaxPool2d(kernel_size=2))
+                        W_tmp = int((W_tmp - nMaxPoolFilterTaps) / numMaxPoolStride) + 1
+                        H_tmp = int((H_tmp - nMaxPoolFilterTaps) / numMaxPoolStride) + 1
+                        # http://cs231n.github.io/convolutional-networks/
+                    convW.append(W_tmp)
+                    convH.append(H_tmp)
+
+                self.ConvLayers = nn.Sequential(*convl)
+
+                numFeatureMap = numChannel[-1] * convW[-1] * convH[-1]
+
+            #####################################################################
+            #                                                                   #
+            #                MLP-feature compression                            #
+            #                                                                   #
+            #####################################################################
+
+            numCompressFeatures = [numFeatureMap] + numCompressFeatures
+
+            compressmlp = []
+            for l in range(dimCompressMLP):
+                compressmlp.append(
+                    nn.Linear(in_features=numCompressFeatures[l], out_features=numCompressFeatures[l + 1], bias=True))
+                compressmlp.append(nn.ReLU(inplace=True))
+                # if self.config.use_dropout:
+                #     compressmlp.append(nn.Dropout(p=0.2))
+
+
+            self.compressMLP = nn.Sequential(*compressmlp)
+
+        self.numFeatures2Share = numCompressFeatures[-1]
+
+        #####################################################################
+        #                                                                   #
+        #                    graph neural network                           #
+        #                                                                   #
+        #####################################################################
+
+        self.L = len(nGraphFilterTaps)  # Number of graph filtering layers
+        self.F = [numCompressFeatures[-1]] + dimNodeSignals  # Features
+        # self.F = [numFeatureMap] + dimNodeSignals  # Features
+        self.K = nGraphFilterTaps  # nFilterTaps # Filter taps
+        self.P = nAttentionHeads
+        self.E = 1  # Number of edge features
+        self.bias = True
+
+        gfl = []  # Graph Filtering Layers
+        for l in range(self.L):
+            # \\ Graph filtering stage:
+
+            if self.config.attentionMode == 'GAT_origin':
+                gfl.append(gml.GraphFilterBatchAttentional_Origin(self.F[l], self.F[l + 1], self.K[l], self.P[l], self.E,self.bias,
+                                                           concatenate=self.config.AttentionConcat,attentionMode=self.config.attentionMode))
+
+            elif self.config.attentionMode == 'GAT_modified' or self.config.attentionMode == 'KeyQuery':
+                gfl.append(gml.GraphFilterBatchAttentional(self.F[l], self.F[l + 1], self.K[l], self.P[l], self.E, self.bias,concatenate=self.config.AttentionConcat,
+                                                    attentionMode=self.config.attentionMode))
+            elif self.config.attentionMode == 'GAT_Similarity':
+                gfl.append(gml.GraphFilterBatchSimilarityAttentional(self.F[l], self.F[l + 1], self.K[l], self.P[l], self.E, self.bias,concatenate=self.config.AttentionConcat,
+                                                    attentionMode=self.config.attentionMode))
+
+
+            # gfl.append(gml.GraphFilterBatchAttentional_Origin(self.F[l], self.F[l + 1], self.K[l], self.P[l], self.E, self.bias, concatenate=self.config.AttentionConcat))
+
+            # gfl.append(
+            #     gml.GraphFilterBatchSimilarityAttentional(self.F[l], self.F[l + 1], self.K[l], self.P[l], self.E, self.bias,
+            #                                     concatenate=self.config.AttentionConcat))
+
+            # There is a 2*l below here, because we have three elements per
+            # layer: graph filter, nonlinearity and pooling, so after each layer
+            # we're actually adding elements to the (sequential) list.
+
+            # \\ Nonlinearity
+            # gfl.append(nn.ReLU(inplace=True))
+
+        # And now feed them into the sequential
+        self.GFL = nn.Sequential(*gfl)  # Graph Filtering Layers
+
+        #####################################################################
+        #                                                                   #
+        #                    MLP --- map to actions                         #
+        #                                                                   #
+        #####################################################################
+        if self.config.AttentionConcat:
+            numActionFeatures = [self.F[-1]*self.config.nAttentionHeads] + numActionFeatures
+        else:
+            numActionFeatures = [self.F[-1]] + numActionFeatures
+        actionsfc = []
+        for l in range(dimActionMLP):
+            if l < (dimActionMLP - 1):
+                actionsfc.append(
+                    nn.Linear(in_features=numActionFeatures[l], out_features=numActionFeatures[l + 1], bias=True))
+                actionsfc.append(nn.ReLU(inplace=True))
+            else:
+                actionsfc.append(
+                    nn.Linear(in_features=numActionFeatures[l], out_features=numActionFeatures[l + 1], bias=True))
+
+            if self.config.use_dropout:
+                actionsfc.append(nn.Dropout(p=0.2))
+                print('Dropout is add on MLP')
+
+        self.actionsMLP = nn.Sequential(*actionsfc)
+        self.apply(weights_init)
+
+    def make_layers(self, cfg, batch_norm=False):
+        layers = []
+
+        input_channel = 3
+        for l in cfg:
+            if l == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+                continue
+
+            layers += [nn.Conv2d(input_channel, l, kernel_size=3, padding=1)]
+
+            if batch_norm:
+                layers += [nn.BatchNorm2d(l)]
+
+            layers += [nn.ReLU(inplace=True)]
+            input_channel = l
+
+        return nn.Sequential(*layers)
+
+
+    def addGSO(self, S):
+        # We add the GSO on real time, this GSO also depends on time and has
+        # shape either B x N x N or B x E x N x N
+        if self.E == 1:  # It is B x T x N x N
+            assert len(S.shape) == 3
+            self.S = S.unsqueeze(1)  # B x E x N x N
+        else:
+            assert len(S.shape) == 4
+            assert S.shape[1] == self.E
+            self.S = S
+        # Remove nan data
+        self.S[torch.isnan(self.S)] = 0
+        if self.config.GSO_mode == 'dist_GSO_one':
+            self.S[self.S > 0] = 1
+        elif self.config.GSO_mode == 'full_GSO':
+            self.S = torch.ones_like(self.S).to(self.config.device)
+        # self.S[self.S > 0] = 1
+
+    def forward(self, inputTensor, S):
+        self.addGSO(S)
+
+        B = self.S.shape[0]
+
+        N = self.S.shape[2]
+
+        assert len(inputTensor.shape) == 3
+        assert inputTensor.shape[0] == B
+        assert inputTensor.shape[1] == self.F[0]
+        assert inputTensor.shape[2] == N
+        F = self.inputTensor.shape[1]
+
+        inputTensor = inputTensor.permute(0,2,1) # BxNxF
+        # N = inputTensor.shape[1]
+        # C =
+        # print(inputTensor.shape)
+        # print(B,N,C,W,H)
+        # B x G x N
+        # extractFeatureMap = torch.zeros(B, self.numFeatures2Share, self.numAgents).to(self.config.device)
+
+        input_currentAgent = inputTensor.reshape(B*N,F).to(self.config.device)
+        # print("input_currentAgent:", input_currentAgent.shape)
+
+        featureMap = self.ConvLayers(input_currentAgent).to(self.config.device)
+        # print("featureMap:", featureMap.shape)
+
+        featureMapFlatten = featureMap.view(featureMap.size(0), -1).to(self.config.device)
+
+        # print("featureMapFlatten:", featureMapFlatten.shape)
+
+
+        compressfeature = self.compressMLP(featureMapFlatten).to(self.config.device)
+        # print("compressfeature:", compressfeature.shape)
+
+
+        extractFeatureMap = compressfeature.reshape(B,N,self.numFeatures2Share).to(self.config.device).permute([0,2,1])
+        # extractFeatureMap_old = compressfeature.reshape(B,N,self.numFeatures2Share).to(self.config.device)
+
+        # print("extractFeatureMap_old:", extractFeatureMap_old.shape)
+
+
+        # extractFeatureMap = extractFeatureMap_old.permute([0,2,1]).to(self.config.device)
+        # print("extractFeatureMap:", extractFeatureMap.shape)
+
+
+        # DCP
+        for l in range(self.L):
+            # \\ Graph filtering stage:
+            # There is a 3*l below here, because we have three elements per
+            # layer: graph filter, nonlinearity and pooling, so after each layer
+            # we're actually adding elements to the (sequential) list.
+            # self.GFL[2 * l].addGSO(self.S) # add GSO for GraphFilter
+            self.GFL[l].addGSO(self.S)  # add GSO for GraphFilter
+
+        # B x F x N - > B x G x N,
+        sharedFeature = self.GFL(extractFeatureMap)
+
+        (_, num_G, _) = sharedFeature.shape
+
+
+        sharedFeature_stack =sharedFeature.permute([0,2,1]).to(self.config.device).reshape(B*N,num_G)
+        # sharedFeature_permute = sharedFeature.permute([0, 2, 1]).to(self.config.device)
+        # sharedFeature_stack = sharedFeature_permute.reshape(B*N,num_G)
+
+        # print(sharedFeature_stack.shape)
+        action_predict = self.actionsMLP(sharedFeature_stack)
+        # print(action_predict)
+        # print(action_predict.shape)
+
+
+        return action_predict

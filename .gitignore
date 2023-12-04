@@ -2,3 +2,11 @@
 /build/
 /alegnn.egg-info/
 poetry.lock
+alegnn/examples
+alegnn/myvid.mp4
+alegnn/*.npy
+
+examples/experiments
+examples/experiments_prev
+examples/*.npy
+examples/openh264-1.6.0-win64msvc.dll.bz2

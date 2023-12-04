@@ -17,9 +17,9 @@ class Model:
     """
     Model: binds together the architecture, the loss function, the optimizer,
         the trainer, and the evaluator.
-        
+
     Initialization:
-        
+
         architecture (nn.Module)
         loss (nn.modules.loss._Loss)
         optimizer (nn.optim)
@@ -28,26 +28,26 @@ class Model:
         device (string or device)
         name (string)
         saveDir (string or path)
-        
-    .train(data, nEpochs, batchSize, **kwargs): train the model for nEpochs 
-        epochs, using batches of size batchSize and running over data data 
+
+    .train(data, nEpochs, batchSize, **kwargs): train the model for nEpochs
+        epochs, using batches of size batchSize and running over data data
         class; see the specific selected trainer for extra options
-    
+
     .evaluate(data): evaluate the model over data data class; see the specific
         selected evaluator for extra options
-        
+
     .save(label = '', [saveDir=dirPath]): save the model parameters under the
         name given by label, if the saveDir is different from the one specified
         in the initialization, it needs to be specified now
-        
+
     .load(label = '', [loadFiles=(architLoadFile, optimLoadFile)]): loads the
         model parameters under the specified name inside the specific saveDir,
         unless they are provided externally through the keyword 'loadFiles'.
-        
+
     .getTrainingOptions(): get a dict with the options used during training; it
         returns None if it hasn't been trained yet.'
     """
-    
+
     def __init__(self,
                  # Architecture (nn.Module)
                  architecture,
@@ -61,7 +61,7 @@ class Model:
                  evaluator,
                  # Other
                  device, name, saveDir):
-        
+
         #\\\ ARCHITECTURE
         # Store
         self.archit = architecture
@@ -92,17 +92,17 @@ class Model:
         self.name = name
         # Saving directory
         self.saveDir = saveDir
-        
-    def train(self, data, nEpochs, batchSize, **kwargs):
-        
-        self.trainer = self.trainer(self, data, nEpochs, batchSize, **kwargs)
-        
+
+    def train(self, data, nEpochs, startEpoch, batchSize, **kwargs):
+
+        self.trainer = self.trainer(self, data, nEpochs, startEpoch, batchSize, **kwargs)
+
         return self.trainer.train()
-    
+
     def evaluate(self, data, **kwargs):
-        
+
         return self.evaluator(self, data, **kwargs)
-    
+
     def save(self, label = '', **kwargs):
         if 'saveDir' in kwargs.keys():
             saveDir = kwargs['saveDir']
@@ -116,20 +116,34 @@ class Model:
         torch.save(self.archit.state_dict(), saveFile+'Archit'+ label+'.ckpt')
         torch.save(self.optim.state_dict(), saveFile+'Optim'+label+'.ckpt')
 
-    def load(self, label = '', **kwargs):
+    def load(self, save_dir='', label = '', **kwargs):
+        print("Loading Model")
+
+        if save_dir != '':
+            save_dire = save_dir
+        else:
+            save_dire = self.saveDir
+
+
+
+
+
         if 'loadFiles' in kwargs.keys():
             (architLoadFile, optimLoadFile) = kwargs['loadFiles']
         else:
-            saveModelDir = os.path.join(self.saveDir,'savedModels')
+            saveModelDir = os.path.join(save_dire,'savedModels')
             architLoadFile = os.path.join(saveModelDir,
                                           self.name + 'Archit' + label +'.ckpt')
             optimLoadFile = os.path.join(saveModelDir,
                                          self.name + 'Optim' + label + '.ckpt')
+
+            print("optimLoadFile", optimLoadFile)
+            print("architLoadFile: ", architLoadFile)
         self.archit.load_state_dict(torch.load(architLoadFile))
         self.optim.load_state_dict(torch.load(optimLoadFile))
 
     def getTrainingOptions(self):
-        
+
         return self.trainer.trainingOptions \
                         if 'trainingOptions' in dir(self.trainer) \
                     else None
